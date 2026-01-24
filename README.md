@@ -1,3 +1,6 @@
+gcloud config set project YOUR_PROJECT_ID
+gcloud config set run/region europe-west1
+
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com
 
 gcloud run deploy YOUR_SERVICE_NAME \
