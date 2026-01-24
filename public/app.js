@@ -7,7 +7,10 @@
  * - Location formatting: Title-case with space / '-' boundaries
  */
 
-const TG_LIST = [4, 6, 8, 23, 40, 50, 51, 52, 53, 54, 55, 58, 60, 1745, 1785, 2300, 2990, 8400, 8401, 9000];
+const TG_LIST = [
+  4, 6, 8, 23, 40, 50, 51, 52, 53, 54, 55, 58, 60, 1745, 1785, 2300, 2990, 8400,
+  8401, 9000,
+];
 
 // Belgium bounds
 const BE_SW = [49.48, 2.54];
@@ -55,7 +58,7 @@ const themeToggleEl = document.getElementById("themeToggle");
 const state = {
   cfg: null,
 
-  nodes: new Map(),     // callsign -> node
+  nodes: new Map(), // callsign -> node
   lastHeard: new Map(), // callsign -> ms
   prevTalker: new Map(),
 
@@ -78,11 +81,13 @@ const state = {
   hsMarkers: new Map(),
   beBounds: null,
   focusMode: "be",
-  focusKey: ""
+  focusKey: "",
 };
 
 function isRepeater(callsign) {
-  return String(callsign || "").toUpperCase().startsWith("ON0");
+  return String(callsign || "")
+    .toUpperCase()
+    .startsWith("ON0");
 }
 
 function toNumber(v) {
@@ -107,7 +112,9 @@ function msAgoLabel(deltaMs) {
 }
 
 function cssVar(name, fallback) {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
   return v || fallback;
 }
 
@@ -140,6 +147,33 @@ function formatLocation(raw) {
     if (ch === " " || ch === "-") capNext = true;
   }
   return out;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function callsignInfoText(callsign) {
+  const key = String(callsign || "").toUpperCase();
+  const val = state.csInfo ? state.csInfo[key] : null;
+  return asTipText(val); // uses your existing helper
+}
+
+function popupHtmlForNode(callsign, locationText) {
+  const cs = String(callsign || "").toUpperCase();
+  const loc = String(locationText || "").trim();
+
+  const info = callsignInfoText(cs);
+  const infoBlock = info
+    ? `<div style="margin-top:6px; white-space:pre-line; color:var(--muted);">${escapeHtml(info)}</div>`
+    : "";
+
+  return `<strong>${escapeHtml(cs)}</strong><br>${escapeHtml(loc)}${infoBlock}`;
 }
 
 // ---------- Tooltip helpers ----------
@@ -192,11 +226,19 @@ function moveTip(x, y) {
 
   const rect = tooltipEl.getBoundingClientRect();
 
-  if (left + rect.width > window.innerWidth - margin) left = x - rect.width - pad;
-  if (top + rect.height > window.innerHeight - margin) top = y - rect.height - pad;
+  if (left + rect.width > window.innerWidth - margin)
+    left = x - rect.width - pad;
+  if (top + rect.height > window.innerHeight - margin)
+    top = y - rect.height - pad;
 
-  left = Math.max(margin, Math.min(left, window.innerWidth - rect.width - margin));
-  top = Math.max(margin, Math.min(top, window.innerHeight - rect.height - margin));
+  left = Math.max(
+    margin,
+    Math.min(left, window.innerWidth - rect.width - margin),
+  );
+  top = Math.max(
+    margin,
+    Math.min(top, window.innerHeight - rect.height - margin),
+  );
 
   tooltipEl.style.left = `${left}px`;
   tooltipEl.style.top = `${top}px`;
@@ -274,7 +316,8 @@ function initHoverTooltips() {
 
   // Hide tooltip on scroll (prevents it "floating" over wrong row)
   const tableFrame = document.querySelector(".tableFrame");
-  if (tableFrame) tableFrame.addEventListener("scroll", () => hideTip(), { passive: true });
+  if (tableFrame)
+    tableFrame.addEventListener("scroll", () => hideTip(), { passive: true });
 
   // Escape to close tooltip
   window.addEventListener("keydown", (e) => {
@@ -289,15 +332,21 @@ function applyTheme(dark) {
 
   if (state.map) {
     if (dark) {
-      if (state.map.hasLayer(state.lightTiles)) state.map.removeLayer(state.lightTiles);
-      if (!state.map.hasLayer(state.darkTiles)) state.darkTiles.addTo(state.map);
+      if (state.map.hasLayer(state.lightTiles))
+        state.map.removeLayer(state.lightTiles);
+      if (!state.map.hasLayer(state.darkTiles))
+        state.darkTiles.addTo(state.map);
     } else {
-      if (state.map.hasLayer(state.darkTiles)) state.map.removeLayer(state.darkTiles);
-      if (!state.map.hasLayer(state.lightTiles)) state.lightTiles.addTo(state.map);
+      if (state.map.hasLayer(state.darkTiles))
+        state.map.removeLayer(state.darkTiles);
+      if (!state.map.hasLayer(state.lightTiles))
+        state.lightTiles.addTo(state.map);
     }
   }
 
-  try { localStorage.setItem(THEME_KEY, dark ? "dark" : "light"); } catch {}
+  try {
+    localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
+  } catch {}
   renderAll();
 }
 
@@ -311,11 +360,15 @@ function initThemeDefaultDark() {
   applyTheme(dark);
 }
 
-themeToggleEl.addEventListener("change", () => applyTheme(themeToggleEl.checked));
+themeToggleEl.addEventListener("change", () =>
+  applyTheme(themeToggleEl.checked),
+);
 
 // ---------- TABLE HEADER ----------
 function buildTgHeader() {
-  Array.from(theadRow.querySelectorAll("th[data-tg]")).forEach(x => x.remove());
+  Array.from(theadRow.querySelectorAll("th[data-tg]")).forEach((x) =>
+    x.remove(),
+  );
   for (const tg of TG_LIST) {
     const th = document.createElement("th");
     th.className = "tg";
@@ -330,14 +383,21 @@ function initMap() {
   const map = L.map("map", { worldCopyJump: true, zoomControl: true });
   state.map = map;
 
-  state.lightTiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-  });
+  state.lightTiles = L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    },
+  );
 
   state.darkTiles = L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    { maxZoom: 19, attribution: "&copy; OpenStreetMap, &copy; CARTO", className: "tiles-dark-soft" }
+    {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap, &copy; CARTO",
+      className: "tiles-dark-soft",
+    },
   );
 
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -349,7 +409,9 @@ function initMap() {
 }
 
 function coordInBelgium(lat, lon) {
-  return lat >= BE_SW[0] && lat <= BE_NE[0] && lon >= BE_SW[1] && lon <= BE_NE[1];
+  return (
+    lat >= BE_SW[0] && lat <= BE_NE[0] && lon >= BE_SW[1] && lon <= BE_NE[1]
+  );
 }
 
 function resetMapToBelgium() {
@@ -362,9 +424,19 @@ function resetMapToBelgium() {
 function upsertMarker(mapKey, callsign, lat, lon, popupHtml) {
   let m = mapKey.get(callsign);
   if (!m) {
-    m = L.circleMarker([lat, lon], { radius: 6, weight: 1, opacity: 1, fillOpacity: 0.8 });
+    m = L.circleMarker([lat, lon], {
+      radius: 6,
+      weight: 1,
+      opacity: 1,
+      fillOpacity: 0.8,
+    });
     m.addTo(state.markerLayer);
-    m.bindPopup(popupHtml);
+
+    m.bindPopup(popupHtml, {
+      maxWidth: 420,
+      minWidth: 280,
+      autoPanPadding: [20, 20],
+    });
     mapKey.set(callsign, m);
   } else {
     m.setLatLng([lat, lon]);
@@ -395,7 +467,7 @@ function setTalkLabel(marker, callsign, enabled) {
           direction: "top",
           offset: [0, -10],
           className: "talkLabel",
-          opacity: 0.96
+          opacity: 0.96,
         });
       }
     } else {
@@ -406,12 +478,12 @@ function setTalkLabel(marker, callsign, enabled) {
 
 function setRepeaterStyle(marker, node) {
   const accent = cssVar("--accent", "#3b82f6"); // BLUE while talking
-  const ok = cssVar("--ok", "#35c48d");        // green when online
+  const ok = cssVar("--ok", "#35c48d"); // green when online
   const muted = "rgba(148,163,184,.55)";
 
   let color = muted;
   let radius = 5;
-  let fillOpacity = 0.30;
+  let fillOpacity = 0.3;
   let weight = 1;
 
   if (node.online) {
@@ -426,13 +498,27 @@ function setRepeaterStyle(marker, node) {
     weight = 3;
   }
 
-  marker.setStyle({ color, fillColor: color, radius, fillOpacity, weight, opacity: 1 });
+  marker.setStyle({
+    color,
+    fillColor: color,
+    radius,
+    fillOpacity,
+    weight,
+    opacity: 1,
+  });
   setTalkLabel(marker, node.callsign, !!node.isTalker);
 }
 
 function setHotspotStyle(marker, node) {
   const accent = cssVar("--accent", "#3b82f6"); // BLUE while talking
-  marker.setStyle({ color: accent, fillColor: accent, radius: 12, fillOpacity: 1.0, weight: 3, opacity: 1 });
+  marker.setStyle({
+    color: accent,
+    fillColor: accent,
+    radius: 12,
+    fillOpacity: 1.0,
+    weight: 3,
+    opacity: 1,
+  });
   setTalkLabel(marker, node.callsign, true);
 }
 
@@ -458,12 +544,15 @@ function visibleTalkersOutsideBelgium() {
 
 function updateMapFocus() {
   const outside = visibleTalkersOutsideBelgium();
-  const key = outside.map(n => n.callsign).sort().join(",");
+  const key = outside
+    .map((n) => n.callsign)
+    .sort()
+    .join(",");
 
   if (outside.length > 0) {
     if (state.focusMode !== "out" || state.focusKey !== key) {
       const b = L.latLngBounds([BE_SW, BE_NE]);
-      outside.forEach(n => b.extend([n.lat, n.lon]));
+      outside.forEach((n) => b.extend([n.lat, n.lon]));
       state.map.fitBounds(b, { padding: [30, 30] });
       state.focusMode = "out";
       state.focusKey = key;
@@ -488,17 +577,26 @@ function updateMapMarkers() {
     const loc = formatLocation(n.location || "");
 
     if (rep) {
-      if (!showRepeaters) { removeMarker(state.repMarkers, n.callsign); continue; }
-      if (activeOnly && !n.online) { removeMarker(state.repMarkers, n.callsign); continue; }
+      if (!showRepeaters) {
+        removeMarker(state.repMarkers, n.callsign);
+        continue;
+      }
+      if (activeOnly && !n.online) {
+        removeMarker(state.repMarkers, n.callsign);
+        continue;
+      }
 
-      const popup = `<strong>${n.callsign}</strong><br>${loc}`;
+      const popup = popupHtmlForNode(n.callsign, loc);
       const m = upsertMarker(state.repMarkers, n.callsign, lat, lon, popup);
       setRepeaterStyle(m, { ...n, lat, lon });
     } else {
       // Hotspots only visible while TALKING
-      if (!showHotspots || !n.isTalker) { removeMarker(state.hsMarkers, n.callsign); continue; }
+      if (!showHotspots || !n.isTalker) {
+        removeMarker(state.hsMarkers, n.callsign);
+        continue;
+      }
 
-      const popup = `<strong>${n.callsign}</strong><br>${loc}`;
+      const popup = popupHtmlForNode(n.callsign, loc);
       const m = upsertMarker(state.hsMarkers, n.callsign, lat, lon, popup);
       setHotspotStyle(m, { ...n, lat, lon });
     }
@@ -514,9 +612,15 @@ function updateMapMarkers() {
 
 // ---------- RENDER ----------
 function renderStatus() {
-  const online = Array.from(state.nodes.values()).filter(n => n.online).length;
-  const offline = Array.from(state.nodes.values()).filter(n => !n.online).length;
-  const talking = Array.from(state.nodes.values()).filter(n => n.isTalker).length;
+  const online = Array.from(state.nodes.values()).filter(
+    (n) => n.online,
+  ).length;
+  const offline = Array.from(state.nodes.values()).filter(
+    (n) => !n.online,
+  ).length;
+  const talking = Array.from(state.nodes.values()).filter(
+    (n) => n.isTalker,
+  ).length;
 
   statusEl.textContent = state.wsOk
     ? `Connected • Online: ${online} • Offline: ${offline} • Talking: ${talking}`
@@ -529,7 +633,11 @@ function chooseTalkTg(node) {
   const tg = Number(node.tg || 0);
   if (node.isTalker && tg && TG_LIST.includes(tg)) return tg;
 
-  if (node.isTalker && Array.isArray(node.monitoredTGs) && node.monitoredTGs.length) {
+  if (
+    node.isTalker &&
+    Array.isArray(node.monitoredTGs) &&
+    node.monitoredTGs.length
+  ) {
     const first = Number(node.monitoredTGs[0]);
     if (TG_LIST.includes(first)) return first;
   }
@@ -558,7 +666,7 @@ function shouldShowInTable(node, nowMs) {
   if (!activeOnly && !node.online && !last) return true;
 
   if (!last) return false;
-  return (nowMs - last) <= windowMs;
+  return nowMs - last <= windowMs;
 }
 
 function renderTable() {
@@ -568,7 +676,7 @@ function renderTable() {
   for (const n of state.nodes.values()) {
     if (!shouldShowInTable(n, now)) continue;
     const last = state.lastHeard.get(n.callsign) || 0;
-    const ago = last ? (now - last) : Number.POSITIVE_INFINITY;
+    const ago = last ? now - last : Number.POSITIVE_INFINITY;
     rows.push({ n, last, ago });
   }
 
@@ -582,26 +690,33 @@ function renderTable() {
   const ok = cssVar("--ok", "#35c48d");
   const bad = cssVar("--bad", "#ff6b6b");
 
-  const html = rows.map(({ n, last }) => {
-    const dot = n.online
-      ? `<span class="dotOnline"></span>`
-      : `<span class="dotOffline"></span>`; // red offline is defined in CSS
+  const html = rows
+    .map(({ n, last }) => {
+      const dot = n.online
+        ? `<span class="dotOnline"></span>`
+        : `<span class="dotOffline"></span>`; // red offline is defined in CSS
 
-    const heard = n.isTalker ? `<span class="timeNow">Now</span>` : (last ? msAgoLabel(Date.now() - last) : "—");
+      const heard = n.isTalker
+        ? `<span class="timeNow">Now</span>`
+        : last
+          ? msAgoLabel(Date.now() - last)
+          : "—";
 
-    const monitored = Array.isArray(n.monitoredTGs) ? n.monitoredTGs : [];
-    const talkTg = chooseTalkTg(n);
+      const monitored = Array.isArray(n.monitoredTGs) ? n.monitoredTGs : [];
+      const talkTg = chooseTalkTg(n);
 
-    const tgCells = TG_LIST.map(tg => {
-      if (n.isTalker && talkTg === tg) return `<td class="tg"><span class="tgTalkDot"></span></td>`;
-      if (monitored.includes(tg)) return `<td class="tg"><span class="tgCheck">✓</span></td>`;
-      return `<td class="tg"></td>`;
-    }).join("");
+      const tgCells = TG_LIST.map((tg) => {
+        if (n.isTalker && talkTg === tg)
+          return `<td class="tg"><span class="tgTalkDot"></span></td>`;
+        if (monitored.includes(tg))
+          return `<td class="tg"><span class="tgCheck">✓</span></td>`;
+        return `<td class="tg"></td>`;
+      }).join("");
 
-    const trCls = n.isTalker ? "talkingRow" : "";
-    const loc = formatLocation(n.location || "");
+      const trCls = n.isTalker ? "talkingRow" : "";
+      const loc = formatLocation(n.location || "");
 
-    return `
+      return `
       <tr class="${trCls}">
         <td class="narrow center">${dot}</td>
         <td><span class="csHover" data-cs="${n.callsign}"><strong>${n.callsign}</strong></span></td>
@@ -610,7 +725,8 @@ function renderTable() {
         ${tgCells}
       </tr>
     `;
-  }).join("");
+    })
+    .join("");
 
   tbody.innerHTML =
     html ||
@@ -644,7 +760,10 @@ function ensureNodeFromSession(sess) {
     tg = Number(hint.tg || 0) || 0;
 
     if (Array.isArray(hint.monitoredTGs)) {
-      monitoredTGs = hint.monitoredTGs.map(x => Number(x)).filter(Number.isFinite).sort((a, b) => a - b);
+      monitoredTGs = hint.monitoredTGs
+        .map((x) => Number(x))
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
     }
     if (hint.qth && typeof hint.qth === "object") {
       lat = toNumber(hint.qth.lat);
@@ -660,7 +779,7 @@ function ensureNodeFromSession(sess) {
     monitoredTGs,
     location,
     lat,
-    lon
+    lon,
   });
   state.prevTalker.set(cs, false);
 }
@@ -687,8 +806,13 @@ function applyNodeUpsert(node) {
   const prev = state.nodes.get(cs) || { callsign: cs };
 
   const monitored = Array.isArray(node.monitoredTGs)
-    ? node.monitoredTGs.map(x => Number(x)).filter(x => Number.isFinite(x)).sort((a, b) => a - b)
-    : (Array.isArray(prev.monitoredTGs) ? prev.monitoredTGs : []);
+    ? node.monitoredTGs
+        .map((x) => Number(x))
+        .filter((x) => Number.isFinite(x))
+        .sort((a, b) => a - b)
+    : Array.isArray(prev.monitoredTGs)
+      ? prev.monitoredTGs
+      : [];
 
   const merged = {
     ...prev,
@@ -700,7 +824,7 @@ function applyNodeUpsert(node) {
     monitoredTGs: monitored,
     lat: toNumber(node.lat ?? prev.lat),
     lon: toNumber(node.lon ?? prev.lon),
-    location: (node.location ?? prev.location ?? "").toString()
+    location: (node.location ?? prev.location ?? "").toString(),
   };
 
   state.nodes.set(cs, merged);
@@ -753,7 +877,11 @@ function connectWs() {
 
   ws.onmessage = (ev) => {
     let msg;
-    try { msg = JSON.parse(ev.data); } catch { return; }
+    try {
+      msg = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
 
     if (msg.type === "snapshot") {
       state.nodes.clear();
@@ -778,7 +906,10 @@ function connectWs() {
       return;
     }
 
-    if ((msg.type === "talk_start" || msg.type === "talk_stop") && msg.session) {
+    if (
+      (msg.type === "talk_start" || msg.type === "talk_stop") &&
+      msg.session
+    ) {
       updateLastHeardFromSession(msg.session);
       renderAll();
       return;
@@ -819,16 +950,21 @@ async function main() {
 
   // merge info maps (LOCAL_* overridden by env-config if you prefer)
   const tgMerged = { ...LOCAL_TG_INFO, ...(state.cfg.talkgroupInfo || {}) };
-  const csMerged = { ...LOCAL_CALLSIGN_INFO, ...(state.cfg.callsignInfo || {}) };
+  const csMerged = {
+    ...LOCAL_CALLSIGN_INFO,
+    ...(state.cfg.callsignInfo || {}),
+  };
   state.tgInfo = normalizeTgInfo(tgMerged);
   state.csInfo = normalizeCsInfo(csMerged);
 
   buildTgHeader();
   initHoverTooltips();
 
-  [showRepeatersEl, showHotspotsEl, activeOnlyEl, windowSelectEl].forEach(el => {
-    el.addEventListener("change", () => renderAll());
-  });
+  [showRepeatersEl, showHotspotsEl, activeOnlyEl, windowSelectEl].forEach(
+    (el) => {
+      el.addEventListener("change", () => renderAll());
+    },
+  );
 
   // 1Hz refresh for "time since heard"
   setInterval(() => renderTable(), 1000);

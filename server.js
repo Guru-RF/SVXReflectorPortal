@@ -14,7 +14,7 @@ function parseJsonEnv(name) {
   if (!raw) return {};
   try {
     const obj = JSON.parse(raw);
-    return (obj && typeof obj === "object") ? obj : {};
+    return obj && typeof obj === "object" ? obj : {};
   } catch (e) {
     console.warn(`Invalid JSON in ${name}: ${e.message}`);
     return {};
@@ -22,8 +22,8 @@ function parseJsonEnv(name) {
 }
 
 // Optional metadata you can set without rebuilding:
-const TALKGROUP_INFO = parseJsonEnv("TG_INFO_JSON");          // {"8":"...","1745":"..."}
-const CALLSIGN_INFO  = parseJsonEnv("CALLSIGN_INFO_JSON");    // {"ON0APS":"...","ON0BRK":"..."}
+const TALKGROUP_INFO = parseJsonEnv("TG_INFO_JSON"); // {"8":"...","1745":"..."}
+const CALLSIGN_INFO = parseJsonEnv("CALLSIGN_INFO_JSON"); // {"ON0APS":"...","ON0BRK":"..."}
 
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
 
@@ -33,7 +33,7 @@ app.get("/config.json", (_req, res) => {
     wsUrl: UPSTREAM_WS_URL,
     title: UI_TITLE,
     talkgroupInfo: TALKGROUP_INFO,
-    callsignInfo: CALLSIGN_INFO
+    callsignInfo: CALLSIGN_INFO,
   });
 });
 
@@ -41,8 +41,8 @@ app.use(
   express.static(path.join(__dirname, "public"), {
     etag: false,
     lastModified: false,
-    maxAge: 0
-  })
+    maxAge: 0,
+  }),
 );
 
 app.listen(PORT, () => {

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+prettier --write "**/*.js"
+prettier --write "**/*.html"
+
 source <(
   yq eval '
     to_entries
