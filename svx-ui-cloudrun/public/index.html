@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>SVX Reflector • Live</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin="anonymous"
+    />
+
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #0f172a;
+        --muted: #64748b;
+        --chip: #eef2ff;
+        --ok: #0a7;
+        --ok-visited: #075;
+        --bad: #b00;
+        --border: #e5e7eb;
+        --panel: #f8fafc;
+        --accent: #3b82f6;
+        --dark-brightness: 1.28;
+        --dark-contrast: 0.96;
+        --dark-saturation: 1.06;
+
+        --tableH: 36vh;
+      }
+      [data-theme="dark"] {
+        --bg: #0b1220;
+        --fg: #e6e8ee;
+        --muted: #9aa3b2;
+        --chip: #1b2538;
+        --ok: #35c48d;
+        --ok-visited: #238b66;
+        --bad: #ff6b6b;
+        --border: #1f2a3b;
+        --panel: #0f172a;
+        --accent: #3b82f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          15px/1.45 system-ui,
+          Segoe UI,
+          Roboto,
+          Arial,
+          sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .toolbar {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .toolbar .spacer {
+        flex: 1;
+      }
+      .conn {
+        font-size: 13px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: var(--chip);
+      }
+      .ok {
+        color: var(--ok);
+      }
+      .bad {
+        color: var(--bad);
+      }
+
+      select {
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--fg);
+        font: inherit;
+      }
+
+      label.chk {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        user-select: none;
+      }
+      label.chk input {
+        transform: scale(1.05);
+      }
+
+      /* Theme toggle (slider) */
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 52px;
+        height: 28px;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #cfd7e3;
+        border-radius: 999px;
+        transition: 0.2s;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 22px;
+        width: 22px;
+        left: 3px;
+        top: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: 0.2s;
+      }
+      input:checked + .slider {
+        background: var(--accent);
+      }
+      input:checked + .slider:before {
+        transform: translateX(24px);
+      }
+      .legend {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .tableFrame {
+        height: var(--tableH);
+        min-height: 220px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        overflow: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      .tableFrame::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        min-width: 980px; /* allows TG columns without squishing */
+      }
+      thead th {
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        z-index: 2;
+      }
+      th,
+      td {
+        padding: 10px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+      th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      th.narrow,
+      td.narrow {
+        width: 34px;
+        padding: 10px 6px;
+      }
+      td.center,
+      th.center {
+        text-align: center;
+      }
+
+      th.tg,
+      td.tg {
+        width: 32px;
+        padding: 6px 4px;
+        text-align: center;
+      }
+      th.tg > span {
+        display: inline-block;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        letter-spacing: 0.5px;
+      }
+
+      /* Left status dot (online indicator) */
+      .dotOnline {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+        background: var(--ok);
+        border: 1px solid rgba(0, 0, 0, 0.15);
+      }
+      .dotOffline {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+        background: var(--bad); /* RED */
+        border: 1px solid rgba(0, 0, 0, 0.15);
+      }
+
+      /* Callsign label shown on map while TALKING */
+      .leaflet-tooltip.talkLabel {
+        background: var(--panel);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-weight: 800;
+        font-size: 12px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+      }
+
+      /* Tooltip arrow color */
+      .leaflet-tooltip.talkLabel:before {
+        border-top-color: var(--panel);
+      }
+
+      /* TG checkmarks (blue) */
+      .tgCheck {
+        display: inline-flex;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        align-items: center;
+        justify-content: center;
+        background: rgba(59, 130, 246, 0.16);
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        color: rgba(147, 197, 253, 1);
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      /* TG talking dot (green) */
+      .tgTalkDot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+        background: var(--ok);
+        border: 1px solid rgba(0, 0, 0, 0.15);
+      }
+
+      .timeNow {
+        color: var(--ok);
+        font-weight: 700;
+      }
+      tr.talkingRow td {
+        background: rgba(53, 196, 141, 0.06);
+      }
+
+      #map {
+        flex: 1;
+        min-height: 320px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .tiles-dark-soft img.leaflet-tile {
+        filter: brightness(var(--dark-brightness))
+          contrast(var(--dark-contrast)) saturate(var(--dark-saturation));
+      }
+
+      @media (max-width: 980px) {
+        :root {
+          --tableH: 46vh;
+        }
+        table {
+          min-width: 900px;
+        }
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        background: var(--panel);
+        padding: 10px 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      footer strong {
+        color: var(--fg);
+      }
+      footer a {
+        color: var(--ok);
+        text-decoration: none;
+      }
+      footer a:hover {
+        text-decoration: underline;
+      }
+      footer a:visited {
+        color: var(--ok-visited);
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div class="row">
+        <h1 id="title">SVX Reflector • Live</h1>
+        <span id="status" class="conn">Connecting…</span>
+      </div>
+
+      <div class="toolbar">
+        <span class="legend" style="font-weight: 600">Show:</span>
+
+        <label class="chk"
+          ><input id="showRepeaters" type="checkbox" checked /> Repeaters</label
+        >
+        <label class="chk"
+          ><input id="showHotspots" type="checkbox" checked /> Hotspots</label
+        >
+        <label class="chk"
+          ><input id="activeOnly" type="checkbox" checked /> Active only</label
+        >
+
+        <select id="windowSelect" title="Window">
+          <option value="3600" selected>1hr</option>
+          <option value="21600">6hr</option>
+          <option value="43200">12hr</option>
+          <option value="86400">1d</option>
+        </select>
+
+        <span class="spacer"></span>
+
+        <label class="row" style="gap: 8px">
+          <span class="legend">Dark</span>
+          <label class="switch" title="Toggle light/dark">
+            <input id="themeToggle" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </label>
+      </div>
+    </header>
+
+    <main>
+      <div class="tableFrame">
+        <table aria-label="Nodes table">
+          <thead>
+            <tr id="theadRow">
+              <th class="narrow center"></th>
+              <th>Callsign</th>
+              <th>Location</th>
+              <th class="center">🕒</th>
+              <!-- TG headers injected by JS -->
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div
+        id="map"
+        role="img"
+        aria-label="Map of Belgium with repeaters and talkers"
+      ></div>
+    </main>
+
+    <footer>
+      <div>
+        The portal logic concept was proposed by
+        <a
+          href="https://www.qrz.com/db/ON8ST"
+          target="_blank"
+          rel="noopener noreferrer"
+          >ON8ST</a
+        >, coded and implemented by
+        <a
+          href="https://www.qrz.com/db/ON6URE"
+          target="_blank"
+          rel="noopener noreferrer"
+          >ON6URE</a
+        >, and runs on top of svxreflector by
+        <a
+          href="https://www.qrz.com/db/SM0SVX"
+          target="_blank"
+          rel="noopener noreferrer"
+          >SM0SVX</a
+        >.
+      </div>
+    </footer>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      crossorigin="anonymous"
+    ></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
