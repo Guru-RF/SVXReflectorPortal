@@ -433,8 +433,8 @@ function upsertMarker(mapKey, callsign, lat, lon, popupHtml) {
     m.addTo(state.markerLayer);
 
     m.bindPopup(popupHtml, {
-      maxWidth: 420,
-      minWidth: 280,
+      maxWidth: 200,
+      minWidth: 160,
       autoPanPadding: [20, 20],
     });
     mapKey.set(callsign, m);
