@@ -22,6 +22,57 @@ const BE_NE = [51.55, 6.41];
 
 const THEME_KEY = "svx-ui-theme";
 
+// Persist UI choices (Show + Window) in localStorage
+const UI_PREFS_KEY = "svx-ui-prefs-v1";
+
+function loadUiPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(UI_PREFS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveUiPrefs(prefs) {
+  try {
+    localStorage.setItem(UI_PREFS_KEY, JSON.stringify(prefs));
+  } catch {}
+}
+
+function restoreUiPrefs() {
+  const p = loadUiPrefs();
+
+  // Show toggles
+  if (showRepeatersEl && typeof p.showRepeaters === "boolean")
+    showRepeatersEl.checked = p.showRepeaters;
+
+  if (showHotspotsEl && typeof p.showHotspots === "boolean")
+    showHotspotsEl.checked = p.showHotspots;
+
+  if (activeOnlyEl && typeof p.activeOnly === "boolean")
+    activeOnlyEl.checked = p.activeOnly;
+
+  // Window dropdown
+  if (windowSelectEl && p.windowSec != null) {
+    const v = String(p.windowSec);
+    const exists = Array.from(windowSelectEl.options).some(
+      (o) => o.value === v,
+    );
+    if (exists) windowSelectEl.value = v;
+  }
+
+  // Dark is already persisted by THEME_KEY in applyTheme()/initThemeDefaultDark()
+}
+
+function persistUiPrefs() {
+  saveUiPrefs({
+    showRepeaters: isChecked(showRepeatersEl, true),
+    showHotspots: isChecked(showHotspotsEl, true),
+    activeOnly: isChecked(activeOnlyEl, true),
+    windowSec: selectNumber(windowSelectEl, 3600),
+  });
+}
+
 /**
  * Optional local defaults (override / extend via /config.json)
  */
@@ -1041,6 +1092,9 @@ async function main() {
   const cfgResp = await fetch("/config.json", { cache: "no-store" });
   state.cfg = await cfgResp.json();
 
+  // Restore "Show" + "Window" settings from previous visit
+  restoreUiPrefs();
+
   if (titleEl && state.cfg.title) titleEl.textContent = state.cfg.title;
 
   const tgMerged = { ...LOCAL_TG_INFO, ...(state.cfg.talkgroupInfo || {}) };
@@ -1058,7 +1112,10 @@ async function main() {
   [showRepeatersEl, showHotspotsEl, activeOnlyEl, windowSelectEl].forEach(
     (el) => {
       if (!el) return;
-      el.addEventListener("change", () => renderAll());
+      el.addEventListener("change", () => {
+        persistUiPrefs();
+        renderAll();
+      });
     },
   );
 
