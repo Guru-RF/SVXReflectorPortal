@@ -1,10 +1,14 @@
 "use strict";
 
 /**
- * Adds:
- * - TG header hover tooltips (from config)
- * - Callsign hover tooltips (from config)
- * - Location formatting: Title-case with space / '-' boundaries
+ * SVX Reflector UI
+ * - WebSocket snapshot + live updates
+ * - Table + map (Leaflet)
+ * - TG header hover tips + callsign hover tips (from config)
+ * - Location formatting (Title-Case, space/- boundaries)
+ * - Callsign info in map popup under location (from CALLSIGN_INFO_JSON)
+ * - Auto-hide header after 10s; scroll reveals
+ * - Mobile: callsign dot contains TG when talking (CSS controls visibility)
  */
 
 const TG_LIST = [
@@ -19,28 +23,20 @@ const BE_NE = [51.55, 6.41];
 const THEME_KEY = "svx-ui-theme";
 
 /**
- * Optional LOCAL defaults (if you prefer editing the JS instead of Cloud Run env vars):
- * Keys for TG can be number or string.
- * Callsigns should be uppercase.
+ * Optional local defaults (override / extend via /config.json)
  */
-const LOCAL_TG_INFO = {
-  // "8": "Belgium wide TG\nUsed for general traffic",
-  // "1745": "Example: Event TG\nSome details here"
-};
+const LOCAL_TG_INFO = {};
+const LOCAL_CALLSIGN_INFO = {};
 
-const LOCAL_CALLSIGN_INFO = {
-  // "ON0APS": "Appels repeater\nSysop: ON1DGR\nUHF",
-  // "ON0BRK": "Brakel repeater\n..."
-};
-
-// DOM
+// DOM (guarded where possible)
 const titleEl = document.getElementById("title");
 const statusEl = document.getElementById("status");
 const tbody = document.getElementById("tbody");
 const theadRow = document.getElementById("theadRow");
+
+// Tooltip element (auto-create if missing)
 let tooltipEl = document.getElementById("tooltip");
 if (!tooltipEl) {
-  // Fallback: create it if index.html doesn't have it or it's placed after the script
   tooltipEl = document.createElement("div");
   tooltipEl.id = "tooltip";
   tooltipEl.className = "hidden";
@@ -48,19 +44,29 @@ if (!tooltipEl) {
   document.body.appendChild(tooltipEl);
 }
 
+// Optional controls (may be hidden on mobile via CSS; still exist in DOM)
 const showRepeatersEl = document.getElementById("showRepeaters");
 const showHotspotsEl = document.getElementById("showHotspots");
 const activeOnlyEl = document.getElementById("activeOnly");
 const windowSelectEl = document.getElementById("windowSelect");
 const themeToggleEl = document.getElementById("themeToggle");
 
-// State
+// Helpers for optional controls
+function isChecked(el, fallback) {
+  return el ? !!el.checked : !!fallback;
+}
+function selectNumber(el, fallback) {
+  if (!el) return fallback;
+  const n = Number(el.value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 const state = {
   cfg: null,
 
   nodes: new Map(), // callsign -> node
   lastHeard: new Map(), // callsign -> ms
-  prevTalker: new Map(),
+  prevTalker: new Map(), // callsign -> bool
 
   wsOk: false,
 
@@ -103,7 +109,7 @@ function toNumber(v) {
 
 function msAgoLabel(deltaMs) {
   const s = Math.floor(deltaMs / 1000);
-  if (!Number.isFinite(s) || s < 0) return "—";
+  if (!Number.isFinite(s) || s < 0) return "\u2014"; // em dash
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m`;
@@ -121,14 +127,13 @@ function cssVar(name, fallback) {
 /**
  * Location formatting rule:
  * - First letter uppercase, rest lowercase
- * - After " " or "-" the next letter is uppercase
- * - If it looks like a Maidenhead locator (KM25QG), keep uppercase
+ * - After " " or "-" next letter uppercase
+ * - If it looks like Maidenhead locator (KM25QG), keep uppercase
  */
 function formatLocation(raw) {
   let s = (raw ?? "").toString().trim();
   if (!s) return "";
 
-  // Keep Maidenhead-like locators (2 letters + 2 digits + 2 letters)
   if (/^[A-Za-z]{2}\d{2}[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
 
   s = s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -158,31 +163,12 @@ function escapeHtml(s) {
     .replace(/'/g, "&#39;");
 }
 
-function callsignInfoText(callsign) {
-  const key = String(callsign || "").toUpperCase();
-  const val = state.csInfo ? state.csInfo[key] : null;
-  return asTipText(val); // uses your existing helper
-}
-
-function popupHtmlForNode(callsign, locationText) {
-  const cs = String(callsign || "").toUpperCase();
-  const loc = String(locationText || "").trim();
-
-  const info = callsignInfoText(cs);
-  const infoBlock = info
-    ? `<div style="margin-top:6px; white-space:pre-line; color:var(--muted);">${escapeHtml(info)}</div>`
-    : "";
-
-  return `<strong>${escapeHtml(cs)}</strong><br>${escapeHtml(loc)}${infoBlock}`;
-}
-
 // ---------- Tooltip helpers ----------
 function asTipText(v) {
   if (v == null) return "";
   if (typeof v === "string") return v.trim();
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   if (typeof v === "object") {
-    // allow {title:"...", text:"..."} if you want later
     const title = (v.title ?? "").toString().trim();
     const text = (v.text ?? v.desc ?? "").toString().trim();
     if (title && text) return `${title}\n${text}`;
@@ -249,86 +235,9 @@ function hideTip() {
   tooltipEl.textContent = "";
 }
 
-function initAutoHideHeader() {
-  const headerEl = document.querySelector("header");
-  if (!headerEl) return;
-
-  const AUTOHIDE_MS = 10_000;
-  let timer = null;
-  let hidden = false;
-
-  function syncHeaderHeight() {
-    // Measure real header height (works on mobile too)
-    const h = Math.max(48, Math.ceil(headerEl.getBoundingClientRect().height));
-    document.documentElement.style.setProperty("--headerH", `${h}px`);
-  }
-
-  function applyHidden(nextHidden) {
-    if (hidden === nextHidden) return;
-    hidden = nextHidden;
-    document.body.classList.toggle("header-hidden", hidden);
-
-    // Leaflet needs a resize nudge when layout changes
-    if (state.map) {
-      setTimeout(() => {
-        try {
-          state.map.invalidateSize();
-        } catch {}
-      }, 320);
-    }
-  }
-
-  function armTimer() {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => applyHidden(true), AUTOHIDE_MS);
-  }
-
-  function revealAndArm() {
-    applyHidden(false);
-    armTimer();
-  }
-
-  // Initial: show for 10s, then hide
-  syncHeaderHeight();
-  applyHidden(false);
-  armTimer();
-
-  // Recompute on resize (header can wrap lines)
-  window.addEventListener(
-    "resize",
-    () => {
-      syncHeaderHeight();
-    },
-    { passive: true },
-  );
-
-  // Show header whenever user scrolls
-  window.addEventListener(
-    "scroll",
-    () => {
-      revealAndArm();
-    },
-    { passive: true },
-  );
-
-  // Your table is usually the scroll container; show header when it scrolls too
-  const tableFrame = document.querySelector(".tableFrame");
-  if (tableFrame) {
-    tableFrame.addEventListener(
-      "scroll",
-      () => {
-        revealAndArm();
-      },
-      { passive: true },
-    );
-  }
-
-  // Optional: wheel/touch also counts as “scroll intent” (good for map zoom & mobile)
-  window.addEventListener("wheel", () => revealAndArm(), { passive: true });
-  window.addEventListener("touchmove", () => revealAndArm(), { passive: true });
-}
-
 function initHoverTooltips() {
+  if (!theadRow || !tbody) return;
+
   function showTgFromEvent(e) {
     const th = e.target.closest("th[data-tg]");
     if (!th) {
@@ -348,7 +257,6 @@ function initHoverTooltips() {
     showTip(txt, e.clientX, e.clientY);
   }
 
-  // TG header hover
   theadRow.addEventListener("mouseover", (e) => showTgFromEvent(e));
   theadRow.addEventListener("mousemove", (e) => {
     if (!tooltipEl.classList.contains("hidden")) moveTip(e.clientX, e.clientY);
@@ -380,7 +288,6 @@ function initHoverTooltips() {
     showTip(txt, e.clientX, e.clientY);
   }
 
-  // Callsign hover (event delegation)
   tbody.addEventListener("mouseover", (e) => showCsFromEvent(e));
   tbody.addEventListener("mousemove", (e) => {
     if (!tooltipEl.classList.contains("hidden")) moveTip(e.clientX, e.clientY);
@@ -393,21 +300,83 @@ function initHoverTooltips() {
     hideTip();
   });
 
-  // Hide tooltip on scroll (prevents it "floating" over wrong row)
-  const tableFrame = document.querySelector(".tableFrame");
-  if (tableFrame)
-    tableFrame.addEventListener("scroll", () => hideTip(), { passive: true });
+  // Hide tooltip on scroll (table container might be .tableFrame or .listWrap depending on your HTML)
+  const scrollHost =
+    document.querySelector(".tableFrame") ||
+    document.querySelector(".listWrap") ||
+    document.querySelector("main");
+  if (scrollHost)
+    scrollHost.addEventListener("scroll", () => hideTip(), { passive: true });
 
-  // Escape to close tooltip
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") hideTip();
   });
 }
 
+// ---------- Auto-hide header ----------
+function initAutoHideHeader() {
+  const headerEl = document.querySelector("header");
+  if (!headerEl) return;
+
+  const AUTOHIDE_MS = 10_000;
+  let timer = null;
+  let hidden = false;
+
+  function syncHeaderHeight() {
+    const h = Math.max(48, Math.ceil(headerEl.getBoundingClientRect().height));
+    document.documentElement.style.setProperty("--headerH", `${h}px`);
+  }
+
+  function applyHidden(nextHidden) {
+    if (hidden === nextHidden) return;
+    hidden = nextHidden;
+    document.body.classList.toggle("header-hidden", hidden);
+
+    if (state.map) {
+      setTimeout(() => {
+        try {
+          state.map.invalidateSize();
+        } catch {}
+      }, 320);
+    }
+  }
+
+  function armTimer() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => applyHidden(true), AUTOHIDE_MS);
+  }
+
+  function revealAndArm() {
+    applyHidden(false);
+    armTimer();
+  }
+
+  syncHeaderHeight();
+  applyHidden(false);
+  armTimer();
+
+  window.addEventListener("resize", () => syncHeaderHeight(), {
+    passive: true,
+  });
+  window.addEventListener("scroll", () => revealAndArm(), { passive: true });
+
+  const scrollHost =
+    document.querySelector(".tableFrame") ||
+    document.querySelector(".listWrap") ||
+    document.querySelector("main");
+  if (scrollHost)
+    scrollHost.addEventListener("scroll", () => revealAndArm(), {
+      passive: true,
+    });
+
+  window.addEventListener("wheel", () => revealAndArm(), { passive: true });
+  window.addEventListener("touchmove", () => revealAndArm(), { passive: true });
+}
+
 // ---------- THEME ----------
 function applyTheme(dark) {
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-  themeToggleEl.checked = dark;
+  if (themeToggleEl) themeToggleEl.checked = dark;
 
   if (state.map) {
     if (dark) {
@@ -439,15 +408,20 @@ function initThemeDefaultDark() {
   applyTheme(dark);
 }
 
-themeToggleEl.addEventListener("change", () =>
-  applyTheme(themeToggleEl.checked),
-);
+if (themeToggleEl) {
+  themeToggleEl.addEventListener("change", () =>
+    applyTheme(themeToggleEl.checked),
+  );
+}
 
 // ---------- TABLE HEADER ----------
 function buildTgHeader() {
+  if (!theadRow) return;
+
   Array.from(theadRow.querySelectorAll("th[data-tg]")).forEach((x) =>
     x.remove(),
   );
+
   for (const tg of TG_LIST) {
     const th = document.createElement("th");
     th.className = "tg";
@@ -459,6 +433,9 @@ function buildTgHeader() {
 
 // ---------- MAP ----------
 function initMap() {
+  const mapEl = document.getElementById("map");
+  if (!mapEl || typeof L === "undefined") return;
+
   const map = L.map("map", { worldCopyJump: true, zoomControl: true });
   state.map = map;
 
@@ -500,6 +477,24 @@ function resetMapToBelgium() {
   state.focusKey = "";
 }
 
+function callsignInfoText(callsign) {
+  const key = String(callsign || "").toUpperCase();
+  const val = state.csInfo ? state.csInfo[key] : null;
+  return asTipText(val);
+}
+
+function popupHtmlForNode(callsign, locationText) {
+  const cs = String(callsign || "").toUpperCase();
+  const loc = String(locationText || "").trim();
+
+  const info = callsignInfoText(cs);
+  const infoBlock = info
+    ? `<div style="margin-top:6px; white-space:pre-line; color:var(--muted);">${escapeHtml(info)}</div>`
+    : "";
+
+  return `<strong>${escapeHtml(cs)}</strong><br>${escapeHtml(loc)}${infoBlock}`;
+}
+
 function upsertMarker(mapKey, callsign, lat, lon, popupHtml) {
   let m = mapKey.get(callsign);
   if (!m) {
@@ -511,11 +506,13 @@ function upsertMarker(mapKey, callsign, lat, lon, popupHtml) {
     });
     m.addTo(state.markerLayer);
 
+    // Wider popup (adjust as you like)
     m.bindPopup(popupHtml, {
-      maxWidth: 200,
-      minWidth: 160,
+      maxWidth: 460,
+      minWidth: 300,
       autoPanPadding: [20, 20],
     });
+
     mapKey.set(callsign, m);
   } else {
     m.setLatLng([lat, lon]);
@@ -602,9 +599,9 @@ function setHotspotStyle(marker, node) {
 }
 
 function visibleTalkersOutsideBelgium() {
-  const showRepeaters = showRepeatersEl.checked;
-  const showHotspots = showHotspotsEl.checked;
-  const activeOnly = activeOnlyEl.checked;
+  const showRepeaters = isChecked(showRepeatersEl, true);
+  const showHotspots = isChecked(showHotspotsEl, true);
+  const activeOnly = isChecked(activeOnlyEl, true);
 
   const out = [];
   for (const n of state.nodes.values()) {
@@ -622,6 +619,8 @@ function visibleTalkersOutsideBelgium() {
 }
 
 function updateMapFocus() {
+  if (!state.map) return;
+
   const outside = visibleTalkersOutsideBelgium();
   const key = outside
     .map((n) => n.callsign)
@@ -643,9 +642,11 @@ function updateMapFocus() {
 }
 
 function updateMapMarkers() {
-  const showRepeaters = showRepeatersEl.checked;
-  const showHotspots = showHotspotsEl.checked;
-  const activeOnly = activeOnlyEl.checked;
+  if (!state.map) return;
+
+  const showRepeaters = isChecked(showRepeatersEl, true);
+  const showHotspots = isChecked(showHotspotsEl, true);
+  const activeOnly = isChecked(activeOnlyEl, true);
 
   for (const n of state.nodes.values()) {
     const lat = toNumber(n.lat);
@@ -681,6 +682,7 @@ function updateMapMarkers() {
     }
   }
 
+  // cleanup markers for removed nodes
   for (const cs of Array.from(state.repMarkers.keys())) {
     if (!state.nodes.has(cs)) removeMarker(state.repMarkers, cs);
   }
@@ -691,6 +693,8 @@ function updateMapMarkers() {
 
 // ---------- RENDER ----------
 function renderStatus() {
+  if (!statusEl) return;
+
   const online = Array.from(state.nodes.values()).filter(
     (n) => n.online,
   ).length;
@@ -701,9 +705,12 @@ function renderStatus() {
     (n) => n.isTalker,
   ).length;
 
+  const dot = "\u2022"; // bullet
+  const ell = "\u2026"; // ellipsis
+
   statusEl.textContent = state.wsOk
-    ? `Connected • Online: ${online} • Offline: ${offline} • Talking: ${talking}`
-    : "Disconnected • Reconnecting…";
+    ? `Connected ${dot} Online: ${online} ${dot} Offline: ${offline} ${dot} Talking: ${talking}`
+    : `Disconnected ${dot} Reconnecting${ell}`;
 
   statusEl.className = "conn " + (state.wsOk ? "ok" : "bad");
 }
@@ -724,9 +731,9 @@ function chooseTalkTg(node) {
 }
 
 function shouldShowInTable(node, nowMs) {
-  const showRepeaters = showRepeatersEl.checked;
-  const showHotspots = showHotspotsEl.checked;
-  const activeOnly = activeOnlyEl.checked;
+  const showRepeaters = isChecked(showRepeatersEl, true);
+  const showHotspots = isChecked(showHotspotsEl, true);
+  const activeOnly = isChecked(activeOnlyEl, true);
 
   const rep = isRepeater(node.callsign);
   if (rep && !showRepeaters) return false;
@@ -734,7 +741,7 @@ function shouldShowInTable(node, nowMs) {
 
   if (activeOnly && !node.online) return false;
 
-  const windowSec = Number(windowSelectEl.value) || 3600;
+  const windowSec = selectNumber(windowSelectEl, 3600);
   const windowMs = windowSec * 1000;
 
   if (node.isTalker) return true;
@@ -749,6 +756,8 @@ function shouldShowInTable(node, nowMs) {
 }
 
 function renderTable() {
+  if (!tbody) return;
+
   const now = Date.now();
 
   const rows = [];
@@ -766,40 +775,52 @@ function renderTable() {
     return a.n.callsign.localeCompare(b.n.callsign);
   });
 
-  const ok = cssVar("--ok", "#35c48d");
-  const bad = cssVar("--bad", "#ff6b6b");
-
   const html = rows
     .map(({ n, last }) => {
+      // Left status dot (desktop)
       const dot = n.online
         ? `<span class="dotOnline"></span>`
-        : `<span class="dotOffline"></span>`; // red offline is defined in CSS
+        : `<span class="dotOffline"></span>`;
 
+      // Heard time
       const heard = n.isTalker
         ? `<span class="timeNow">Now</span>`
         : last
           ? msAgoLabel(Date.now() - last)
-          : "—";
+          : "\u2014";
 
       const monitored = Array.isArray(n.monitoredTGs) ? n.monitoredTGs : [];
       const talkTg = chooseTalkTg(n);
 
+      // TG matrix cells (desktop; mobile hides with CSS)
       const tgCells = TG_LIST.map((tg) => {
         if (n.isTalker && talkTg === tg)
           return `<td class="tg"><span class="tgTalkDot"></span></td>`;
         if (monitored.includes(tg))
-          return `<td class="tg"><span class="tgCheck">✓</span></td>`;
+          return `<td class="tg"><span class="tgCheck">&#10003;</span></td>`;
         return `<td class="tg"></td>`;
       }).join("");
 
       const trCls = n.isTalker ? "talkingRow" : "";
       const loc = formatLocation(n.location || "");
 
+      // Mobile dot (shown only on mobile by CSS)
+      const mDotText = n.isTalker && talkTg ? String(talkTg) : "";
+      const mDotState = n.online ? "online" : "offline";
+      const mDotTalk = n.isTalker ? " talking" : "";
+      const mDotHtml = `<span class="mDot ${mDotState}${mDotTalk}">${escapeHtml(mDotText)}</span>`;
+
       return `
       <tr class="${trCls}">
         <td class="narrow center">${dot}</td>
-        <td><span class="csHover" data-cs="${n.callsign}"><strong>${n.callsign}</strong></span></td>
-        <td>${loc}</td>
+
+        <td>
+          <span class="csHover" data-cs="${escapeHtml(n.callsign)}">
+            ${mDotHtml}<strong>${escapeHtml(n.callsign)}</strong>
+          </span>
+        </td>
+
+        <td>${escapeHtml(loc)}</td>
         <td class="center">${heard}</td>
         ${tgCells}
       </tr>
@@ -815,10 +836,8 @@ function renderTable() {
 function renderAll() {
   renderStatus();
   renderTable();
-  if (state.map) {
-    updateMapMarkers();
-    updateMapFocus();
-  }
+  updateMapMarkers();
+  updateMapFocus();
 }
 
 // ---------- WS HANDLING ----------
@@ -911,12 +930,7 @@ function applyNodeUpsert(node) {
   const wasTalker = !!state.prevTalker.get(cs);
   const isTalker = !!merged.isTalker;
 
-  if (!wasTalker && isTalker) {
-    const t = Date.now();
-    const old = state.lastHeard.get(cs) || 0;
-    if (t > old) state.lastHeard.set(cs, t);
-  }
-  if (wasTalker && !isTalker) {
+  if ((!wasTalker && isTalker) || (wasTalker && !isTalker)) {
     const t = Date.now();
     const old = state.lastHeard.get(cs) || 0;
     if (t > old) state.lastHeard.set(cs, t);
@@ -926,9 +940,10 @@ function applyNodeUpsert(node) {
 }
 
 function connectWs() {
-  const wsUrl = state.cfg.wsUrl;
-  let ws;
+  const wsUrl = state.cfg?.wsUrl;
+  if (!wsUrl) return;
 
+  let ws;
   try {
     ws = new WebSocket(wsUrl);
   } catch {
@@ -1026,9 +1041,8 @@ async function main() {
   const cfgResp = await fetch("/config.json", { cache: "no-store" });
   state.cfg = await cfgResp.json();
 
-  if (state.cfg.title) titleEl.textContent = state.cfg.title;
+  if (titleEl && state.cfg.title) titleEl.textContent = state.cfg.title;
 
-  // merge info maps (LOCAL_* overridden by env-config if you prefer)
   const tgMerged = { ...LOCAL_TG_INFO, ...(state.cfg.talkgroupInfo || {}) };
   const csMerged = {
     ...LOCAL_CALLSIGN_INFO,
@@ -1040,8 +1054,10 @@ async function main() {
   buildTgHeader();
   initHoverTooltips();
 
+  // Controls -> rerender
   [showRepeatersEl, showHotspotsEl, activeOnlyEl, windowSelectEl].forEach(
     (el) => {
+      if (!el) return;
       el.addEventListener("change", () => renderAll());
     },
   );
@@ -1054,6 +1070,8 @@ async function main() {
 }
 
 main().catch(() => {
-  statusEl.textContent = "Startup failed";
-  statusEl.className = "conn bad";
+  if (statusEl) {
+    statusEl.textContent = "Startup failed";
+    statusEl.className = "conn bad";
+  }
 });

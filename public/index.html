@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
-    <title>SVX Reflector • Live</title>
+    <title>SVX Reflector &#8226; Live</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link
       rel="stylesheet"
@@ -109,7 +109,7 @@
         font: inherit;
       }
 
-      label.chk {
+      label.check {
         display: inline-flex;
         align-items: center;
         gap: 8px;
@@ -119,7 +119,7 @@
         border: 1px solid var(--border);
         user-select: none;
       }
-      label.chk input {
+      label.check input {
         transform: scale(1.05);
       }
 
@@ -225,8 +225,48 @@
         width: 100%;
         border-collapse: collapse;
         font-size: 14px;
-        min-width: 980px; /* allows TG columns without squishing */
+        /* IMPORTANT: no min-width here — mobile must be able to fit */
       }
+
+      /* Only keep the big width on desktop where TG columns exist */
+      @media (max-width: 720px) {
+        /* Keep your existing rules (desktopOnly hide, TG hide, mDot show, etc.) */
+
+        /* Prevent horizontal scroll on mobile */
+        .tableFrame {
+          overflow-x: hidden;
+          overflow-y: auto;
+        }
+
+        /* Force the table to fit the viewport */
+        table {
+          min-width: 0 !important;
+          table-layout: fixed;
+        }
+
+        /* Column sizing (based on ORIGINAL column indices) */
+        /* col 1 is hidden, so these are: 2=callsign, 3=location, 4=time */
+        table thead th:nth-child(2),
+        table tbody td:nth-child(2) {
+          width: 38%;
+          white-space: nowrap;
+        }
+
+        table thead th:nth-child(3),
+        table tbody td:nth-child(3) {
+          width: 47%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        table thead th:nth-child(4),
+        table tbody td:nth-child(4) {
+          width: 15%;
+          white-space: nowrap;
+        }
+      }
+
       thead th {
         position: sticky;
         top: 0;
@@ -403,42 +443,138 @@
       .csHover {
         cursor: help;
       }
+
+      /* Utility */
+      .desktopOnly {
+        display: initial;
+      }
+
+      /* Mobile callsign dot with TG inside (only visible on mobile) */
+      .mDot {
+        display: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 700;
+        margin-right: 8px;
+        line-height: 1;
+        color: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.18);
+      }
+      [data-theme="dark"] .mDot {
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+
+      .mDot.online {
+        background: var(--ok);
+      }
+      .mDot.offline {
+        background: var(--bad);
+      }
+      .mDot.talking {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+      }
+
+      /* Mobile layout */
+      @media (max-width: 720px) {
+        /* Header: only title + window + dark toggle */
+        .desktopOnly {
+          display: none !important;
+        }
+
+        header {
+          padding: 10px 12px;
+        }
+        header h1 {
+          font-size: 16px;
+        }
+        header .toolbar {
+          gap: 10px;
+        }
+
+        /* Table: hide the first column (status dot col) */
+        table thead th:nth-child(1),
+        table tbody td:nth-child(1) {
+          display: none;
+        }
+
+        /* Table: hide all talkgroup matrix columns */
+        th[data-tg],
+        td.tg {
+          display: none;
+        }
+
+        /* Show the mobile dot inside callsign */
+        .mDot {
+          display: inline-flex;
+        }
+
+        /* Slightly tighter rows on mobile */
+        th,
+        td {
+          padding: 8px 8px;
+        }
+
+        /* Keep "heard" compact */
+        td.center {
+          white-space: nowrap;
+        }
+
+        /* Make location not explode the width */
+        td:nth-child(3) {
+          max-width: 52vw;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
     </style>
   </head>
 
   <body>
     <header>
-      <div class="row">
-        <h1 id="title">SVX Reflector • Live</h1>
-        <span id="status" class="conn">Connecting…</span>
+      <div class="row desktopOnly">
+        <h1 id="title">SVX Reflector &#8226; Live</h1>
+        <span id="status" class="conn">Connecting&hellip;</span>
       </div>
 
       <div class="toolbar">
-        <span class="legend" style="font-weight: 600">Show:</span>
+        <div id="showControls" class="desktopOnly">
+          <span class="muted">Show:</span>
+          <label class="check"
+            ><input id="showRepeaters" type="checkbox" checked />
+            Repeaters</label
+          >
+          <label class="check"
+            ><input id="showHotspots" type="checkbox" checked /> Hotspots</label
+          >
+          <label class="check"
+            ><input id="activeOnly" type="checkbox" checked /> Active
+            only</label
+          >
+        </div>
 
-        <label class="chk"
-          ><input id="showRepeaters" type="checkbox" checked /> Repeaters</label
-        >
-        <label class="chk"
-          ><input id="showHotspots" type="checkbox" checked /> Hotspots</label
-        >
-        <label class="chk"
-          ><input id="activeOnly" type="checkbox" checked /> Active only</label
-        >
-
-        <select id="windowSelect" title="Window">
-          <option value="3600" selected>1hr</option>
-          <option value="21600">6hr</option>
-          <option value="43200">12hr</option>
-          <option value="86400">1d</option>
-        </select>
+        <label class="row"
+          >Window:
+          <select id="windowSelect">
+            <option value="3600">1h</option>
+            <option value="21600">6h</option>
+            <option value="43200">12h</option>
+            <option value="86400">1d</option>
+          </select>
+        </label>
 
         <span class="spacer"></span>
 
         <label class="row" style="gap: 8px">
           <span class="legend">Dark</span>
           <label class="switch" title="Toggle light/dark">
-            <input id="themeToggle" type="checkbox" checked />
+            <input id="themeToggle" type="checkbox" />
             <span class="slider"></span>
           </label>
         </label>
@@ -492,7 +628,7 @@
       </div>
     </footer>
 
-    <div id="tooltip" class="hidden" aria-hidden="true"></div>
+    <div id="tooltip" class="hidden" aria-hidden="true">&#128338;</div>
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       crossorigin="anonymous"
