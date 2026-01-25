@@ -249,6 +249,85 @@ function hideTip() {
   tooltipEl.textContent = "";
 }
 
+function initAutoHideHeader() {
+  const headerEl = document.querySelector("header");
+  if (!headerEl) return;
+
+  const AUTOHIDE_MS = 10_000;
+  let timer = null;
+  let hidden = false;
+
+  function syncHeaderHeight() {
+    // Measure real header height (works on mobile too)
+    const h = Math.max(48, Math.ceil(headerEl.getBoundingClientRect().height));
+    document.documentElement.style.setProperty("--headerH", `${h}px`);
+  }
+
+  function applyHidden(nextHidden) {
+    if (hidden === nextHidden) return;
+    hidden = nextHidden;
+    document.body.classList.toggle("header-hidden", hidden);
+
+    // Leaflet needs a resize nudge when layout changes
+    if (state.map) {
+      setTimeout(() => {
+        try {
+          state.map.invalidateSize();
+        } catch {}
+      }, 320);
+    }
+  }
+
+  function armTimer() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => applyHidden(true), AUTOHIDE_MS);
+  }
+
+  function revealAndArm() {
+    applyHidden(false);
+    armTimer();
+  }
+
+  // Initial: show for 10s, then hide
+  syncHeaderHeight();
+  applyHidden(false);
+  armTimer();
+
+  // Recompute on resize (header can wrap lines)
+  window.addEventListener(
+    "resize",
+    () => {
+      syncHeaderHeight();
+    },
+    { passive: true },
+  );
+
+  // Show header whenever user scrolls
+  window.addEventListener(
+    "scroll",
+    () => {
+      revealAndArm();
+    },
+    { passive: true },
+  );
+
+  // Your table is usually the scroll container; show header when it scrolls too
+  const tableFrame = document.querySelector(".tableFrame");
+  if (tableFrame) {
+    tableFrame.addEventListener(
+      "scroll",
+      () => {
+        revealAndArm();
+      },
+      { passive: true },
+    );
+  }
+
+  // Optional: wheel/touch also counts as “scroll intent” (good for map zoom & mobile)
+  window.addEventListener("wheel", () => revealAndArm(), { passive: true });
+  window.addEventListener("touchmove", () => revealAndArm(), { passive: true });
+}
+
 function initHoverTooltips() {
   function showTgFromEvent(e) {
     const th = e.target.closest("th[data-tg]");
@@ -941,6 +1020,7 @@ function normalizeCsInfo(obj) {
 async function main() {
   initThemeDefaultDark();
   initMap();
+  initAutoHideHeader();
 
   // config
   const cfgResp = await fetch("/config.json", { cache: "no-store" });

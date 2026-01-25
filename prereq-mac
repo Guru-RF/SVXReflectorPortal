@@ -1,1 +1,2 @@
 brew install yq
+brew install prettier

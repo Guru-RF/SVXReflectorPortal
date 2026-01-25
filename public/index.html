@@ -168,6 +168,38 @@
         color: var(--muted);
       }
 
+      :root {
+        --headerH: 72px; /* JS will override with exact measured height */
+        --headerAnim: 260ms;
+      }
+
+      /* Make the top bar slide in/out */
+      header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        transform: translateY(0);
+        transition: transform var(--headerAnim) ease;
+      }
+
+      /* When hidden, slide header up */
+      body.header-hidden header {
+        transform: translateY(calc(-1 * var(--headerH)));
+      }
+
+      /* Push content down when header is visible */
+      main {
+        padding-top: var(--headerH);
+        transition: padding-top var(--headerAnim) ease;
+      }
+
+      /* When header is hidden, remove padding so content moves up */
+      body.header-hidden main {
+        padding-top: 0;
+      }
+
       main {
         flex: 1;
         min-height: 0;
