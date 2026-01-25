@@ -231,6 +231,19 @@
       /* Only keep the big width on desktop where TG columns exist */
       @media (max-width: 720px) {
         /* Keep your existing rules (desktopOnly hide, TG hide, mDot show, etc.) */
+        .leaflet-control-zoom {
+          display: none !important;
+        }
+
+        /* Hide Leaflet attribution line */
+        .leaflet-control-attribution {
+          display: none !important;
+        }
+
+        /* Hide footer disclaimer on mobile */
+        footer {
+          display: none !important;
+        }
 
         /* Prevent horizontal scroll on mobile */
         .tableFrame {
