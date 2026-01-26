@@ -425,7 +425,6 @@ function initAutoHideHeader() {
     });
 
   window.addEventListener("wheel", () => revealAndArm(), { passive: true });
-  window.addEventListener("touchmove", () => revealAndArm(), { passive: true });
 }
 
 // ---------- THEME ----------
