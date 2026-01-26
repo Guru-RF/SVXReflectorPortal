@@ -533,6 +533,47 @@ function goHomeView(animated = true) {
   state.focusKey = "";
 }
 
+function addCenterControl() {
+  if (!state.map || typeof L === "undefined") return;
+
+  const CenterControl = L.Control.extend({
+    options: { position: "topright" }, // ✅ rechtsboven
+    onAdd: function (map) {
+      const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+      const btn = L.DomUtil.create("a", "leaflet-control-center", container);
+
+      btn.href = "#";
+      btn.title = "Center map (reset to default)";
+      btn.setAttribute("aria-label", "Center map (reset to default)");
+
+      // Crosshair icon (works everywhere, no extra fonts)
+      btn.innerHTML = "⌖";
+
+      // Prevent clicks from triggering map drag/click handlers
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+
+      L.DomEvent.on(btn, "click", (e) => {
+        L.DomEvent.preventDefault(e);
+
+        // Clear saved home view so default is truly Belgium again
+        try {
+          localStorage.removeItem(MAP_HOME_KEY);
+        } catch {}
+
+        state.homeView = null;
+
+        // Go back to default (Belgium)
+        goHomeView(true); // will fallback to Belgium bounds when no home view exists
+      });
+
+      return container;
+    },
+  });
+
+  state.map.addControl(new CenterControl());
+}
+
 // ---------- MAP ----------
 function initMap() {
   const mapEl = document.getElementById("map");
@@ -563,6 +604,7 @@ function initMap() {
 
   state.markerLayer = L.layerGroup().addTo(map);
   state.beBounds = L.latLngBounds([BE_SW, BE_NE]);
+  addCenterControl();
 
   // Restore saved "home view" (or default to Belgium)
   state.homeView = loadMapHome();
