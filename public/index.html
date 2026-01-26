@@ -72,10 +72,11 @@
         --bad: #b00;
         --border: #e5e7eb;
         --panel: #f8fafc;
-        --accent: #3b82f6;
+        --accent: #a52a2a;
         --dark-brightness: 1.28;
         --dark-contrast: 0.96;
         --dark-saturation: 1.06;
+        --hotspot: #ffa502;
 
         --tableH: 36vh;
       }
@@ -89,7 +90,7 @@
         --bad: #ff6b6b;
         --border: #1f2a3b;
         --panel: #0f172a;
-        --accent: #3b82f6;
+        --accent: #a52a2a;
       }
 
       * {
@@ -481,6 +482,20 @@
       footer a:visited {
         color: var(--ok-visited);
       }
+      .footer-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap; /* allows stacking on small screens */
+      }
+      .footer-left {
+        min-width: 240px;
+      }
+      .footer-right {
+        margin-left: auto;
+        white-space: nowrap;
+      }
       /* Floating tooltip (TG + callsign hover) */
       #tooltip {
         position: fixed;
@@ -668,27 +683,36 @@
       ></div>
     </main>
 
-    <footer>
-      <div>
-        The portal logic concept was proposed by
-        <a
-          href="https://www.qrz.com/db/ON8ST"
-          target="_blank"
-          rel="noopener noreferrer"
-          >ON8ST</a
-        >, coded and implemented by
-        <a
-          href="https://www.qrz.com/db/ON6URE"
-          target="_blank"
-          rel="noopener noreferrer"
-          >ON6URE</a
-        >, and runs on top of svxreflector by
-        <a
-          href="https://www.qrz.com/db/SM0SVX"
-          target="_blank"
-          rel="noopener noreferrer"
-          >SM0SVX</a
-        >.
+    <footer class="site-footer">
+      <div class="footer-row">
+        <div class="footer-left">
+          The portal logic concept was proposed by
+          <a
+            href="https://www.qrz.com/db/ON8ST"
+            target="_blank"
+            rel="noopener noreferrer"
+            >ON8ST</a
+          >, coded and implemented by
+          <a
+            href="https://www.qrz.com/db/ON6URE"
+            target="_blank"
+            rel="noopener noreferrer"
+            >ON6URE</a
+          >, and runs on top of svxreflector by
+          <a
+            href="https://www.qrz.com/db/SM0SVX"
+            target="_blank"
+            rel="noopener noreferrer"
+            >SM0SVX</a
+          >.
+        </div>
+
+        <div class="footer-right">
+          Hosted by
+          <a href="https://rf.guru" target="_blank" rel="noopener noreferrer"
+            >rf.guru</a
+          >
+        </div>
       </div>
     </footer>
 

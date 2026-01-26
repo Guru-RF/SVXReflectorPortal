@@ -604,7 +604,7 @@ function setTalkLabel(marker, callsign, enabled) {
 }
 
 function setRepeaterStyle(marker, node) {
-  const accent = cssVar("--accent", "#3b82f6"); // BLUE while talking
+  const accent = cssVar("--accent", "#A52A2A"); // RED while talking
   const ok = cssVar("--ok", "#35c48d"); // green when online
   const muted = "rgba(148,163,184,.55)";
 
@@ -621,7 +621,7 @@ function setRepeaterStyle(marker, node) {
   if (node.isTalker) {
     color = accent;
     fillOpacity = 1.0;
-    radius = 12;
+    radius = 9;
     weight = 3;
   }
 
@@ -637,16 +637,33 @@ function setRepeaterStyle(marker, node) {
 }
 
 function setHotspotStyle(marker, node) {
-  const accent = cssVar("--accent", "#3b82f6"); // BLUE while talking
+  const accent = cssVar("--accent", "#A52A2A"); // RED while talking
+  const hs = cssVar("--hotspot", "#FFA502"); // ORANGE for hotspots
+
+  let color = hs;
+  let radius = 6;
+  let fillOpacity = node.online ? 0.65 : 0.25;
+  let weight = 1;
+
+  // Talking overrides color/size
+  if (node.isTalker) {
+    color = accent;
+    radius = 9;
+    fillOpacity = 1.0;
+    weight = 3;
+  }
+
   marker.setStyle({
-    color: accent,
-    fillColor: accent,
-    radius: 12,
-    fillOpacity: 1.0,
-    weight: 3,
+    color,
+    fillColor: color,
+    radius,
+    fillOpacity,
+    weight,
     opacity: 1,
   });
-  setTalkLabel(marker, node.callsign, true);
+
+  // Only show callsign label when talking (avoids clutter)
+  setTalkLabel(marker, node.callsign, !!node.isTalker);
 }
 
 function visibleTalkersOutsideBelgium() {
@@ -721,8 +738,14 @@ function updateMapMarkers() {
       const m = upsertMarker(state.repMarkers, n.callsign, lat, lon, popup);
       setRepeaterStyle(m, { ...n, lat, lon });
     } else {
-      // Hotspots only visible while TALKING
-      if (!showHotspots || !n.isTalker) {
+      // Hotspots: visible on map as well (orange), even when not talking
+      if (!showHotspots) {
+        removeMarker(state.hsMarkers, n.callsign);
+        continue;
+      }
+
+      // Respect Active-only filter: if ON, hide offline hotspots
+      if (activeOnly && !n.online) {
         removeMarker(state.hsMarkers, n.callsign);
         continue;
       }
@@ -739,6 +762,30 @@ function updateMapMarkers() {
   }
   for (const cs of Array.from(state.hsMarkers.keys())) {
     if (!state.nodes.has(cs)) removeMarker(state.hsMarkers, cs);
+  }
+  normalizeMarkerZOrder();
+}
+
+function normalizeMarkerZOrder() {
+  // Put non-talking hotspots behind everything
+  for (const [cs, m] of state.hsMarkers.entries()) {
+    const n = state.nodes.get(cs);
+    if (!m || !n) continue;
+    if (!n.isTalker && m.bringToBack) m.bringToBack();
+  }
+
+  // Keep repeaters above hotspots (even when not talking)
+  for (const [, m] of state.repMarkers.entries()) {
+    if (m && m.bringToFront) m.bringToFront();
+  }
+
+  // Finally: all talkers on top (repeaters + hotspots)
+  for (const n of state.nodes.values()) {
+    if (!n.isTalker) continue;
+    const m = isRepeater(n.callsign)
+      ? state.repMarkers.get(n.callsign)
+      : state.hsMarkers.get(n.callsign);
+    if (m && m.bringToFront) m.bringToFront();
   }
 }
 
