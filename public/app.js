@@ -21,6 +21,7 @@ const BE_SW = [49.48, 2.54];
 const BE_NE = [51.55, 6.41];
 
 const THEME_KEY = "svx-ui-theme";
+const MAP_HOME_KEY = "svx-map-home-v1";
 
 // Persist UI choices (Show + Window) in localStorage
 const UI_PREFS_KEY = "svx-ui-prefs-v1";
@@ -119,6 +120,9 @@ const state = {
   lastHeard: new Map(), // callsign -> ms
   prevTalker: new Map(), // callsign -> bool
 
+  homeView: null,
+  mapAutoMove: false, // true while WE (code) change the map view
+
   wsOk: false,
 
   // metadata (from config.json + LOCAL_* merged)
@@ -137,7 +141,7 @@ const state = {
   repMarkers: new Map(),
   hsMarkers: new Map(),
   beBounds: null,
-  focusMode: "be",
+  focusMode: "home",
   focusKey: "",
 };
 
@@ -482,6 +486,53 @@ function buildTgHeader() {
   }
 }
 
+function loadMapHome() {
+  try {
+    const raw = localStorage.getItem(MAP_HOME_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (!v || typeof v !== "object") return null;
+    if (
+      !Number.isFinite(v.lat) ||
+      !Number.isFinite(v.lng) ||
+      !Number.isFinite(v.zoom)
+    )
+      return null;
+    return { lat: v.lat, lng: v.lng, zoom: v.zoom };
+  } catch {
+    return null;
+  }
+}
+
+function saveMapHomeFromMap() {
+  if (!state.map) return;
+  const c = state.map.getCenter();
+  const z = state.map.getZoom();
+  const v = { lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6), zoom: z };
+  state.homeView = v;
+  try {
+    localStorage.setItem(MAP_HOME_KEY, JSON.stringify(v));
+  } catch {}
+}
+
+function goHomeView(animated = true) {
+  if (!state.map) return;
+
+  const v = state.homeView || loadMapHome();
+  state.homeView = v || null;
+
+  state.mapAutoMove = true;
+  if (v) {
+    state.map.setView([v.lat, v.lng], v.zoom, { animate: animated });
+  } else {
+    // fallback = Belgium
+    state.map.fitBounds(state.beBounds, { padding: [20, 20] });
+  }
+
+  state.focusMode = "home";
+  state.focusKey = "";
+}
+
 // ---------- MAP ----------
 function initMap() {
   const mapEl = document.getElementById("map");
@@ -512,7 +563,36 @@ function initMap() {
 
   state.markerLayer = L.layerGroup().addTo(map);
   state.beBounds = L.latLngBounds([BE_SW, BE_NE]);
-  map.fitBounds(state.beBounds, { padding: [20, 20] });
+
+  // Restore saved "home view" (or default to Belgium)
+  state.homeView = loadMapHome();
+  state.mapAutoMove = true;
+  if (state.homeView) {
+    map.setView([state.homeView.lat, state.homeView.lng], state.homeView.zoom, {
+      animate: false,
+    });
+  } else {
+    map.fitBounds(state.beBounds, { padding: [20, 20] });
+  }
+  state.focusMode = "home";
+  state.focusKey = "";
+
+  // Save home view when USER pans/zooms (ignore programmatic moves)
+  map.on("moveend", () => {
+    if (state.mapAutoMove) {
+      state.mapAutoMove = false;
+      return;
+    }
+
+    // user moved => become new home
+    saveMapHomeFromMap();
+
+    // if no outside talkers, we are in home mode
+    if (visibleTalkersOutsideBelgium().length === 0) {
+      state.focusMode = "home";
+      state.focusKey = "";
+    }
+  });
 }
 
 function coordInBelgium(lat, lon) {
@@ -621,8 +701,8 @@ function setRepeaterStyle(marker, node) {
   if (node.isTalker) {
     color = accent;
     fillOpacity = 1.0;
-    radius = 9;
-    weight = 3;
+    radius = 8;
+    weight = 4;
   }
 
   marker.setStyle({
@@ -648,9 +728,9 @@ function setHotspotStyle(marker, node) {
   // Talking overrides color/size
   if (node.isTalker) {
     color = accent;
-    radius = 9;
+    radius = 8;
     fillOpacity = 1.0;
-    weight = 3;
+    weight = 4;
   }
 
   marker.setStyle({
@@ -678,7 +758,7 @@ function visibleTalkersOutsideBelgium() {
 
     const rep = isRepeater(n.callsign);
     if (rep && !showRepeaters) continue;
-    if (!rep && !showHotspots) continue;
+    if (!rep && !showHotspots && !n.isTalker) continue;
     if (activeOnly && !n.online) continue;
 
     if (!coordInBelgium(n.lat, n.lon)) out.push(n);
@@ -699,14 +779,16 @@ function updateMapFocus() {
     if (state.focusMode !== "out" || state.focusKey !== key) {
       const b = L.latLngBounds([BE_SW, BE_NE]);
       outside.forEach((n) => b.extend([n.lat, n.lon]));
+
+      state.mapAutoMove = true;
       state.map.fitBounds(b, { padding: [30, 30] });
+
       state.focusMode = "out";
       state.focusKey = key;
     }
     return;
   }
-
-  if (state.focusMode !== "be") resetMapToBelgium();
+  if (state.focusMode !== "home") goHomeView();
 }
 
 function updateMapMarkers() {
@@ -738,16 +820,22 @@ function updateMapMarkers() {
       const m = upsertMarker(state.repMarkers, n.callsign, lat, lon, popup);
       setRepeaterStyle(m, { ...n, lat, lon });
     } else {
-      // Hotspots: visible on map as well (orange), even when not talking
-      if (!showHotspots) {
+      // Hotspots:
+      // - If Hotspots toggle ON: show all hotspots (respect Active-only for offline)
+      // - If Hotspots toggle OFF: show ONLY while talking
+      if (!showHotspots && !n.isTalker) {
         removeMarker(state.hsMarkers, n.callsign);
         continue;
       }
 
-      // Respect Active-only filter: if ON, hide offline hotspots
-      if (activeOnly && !n.online) {
-        removeMarker(state.hsMarkers, n.callsign);
-        continue;
+      if (!showHotspots && n.isTalker) {
+        // allow talking hotspot even if hotspots are disabled
+      } else {
+        // hotspots enabled -> still respect active-only for offline
+        if (activeOnly && !n.online) {
+          removeMarker(state.hsMarkers, n.callsign);
+          continue;
+        }
       }
 
       const popup = popupHtmlForNode(n.callsign, loc);
@@ -834,8 +922,14 @@ function shouldShowInTable(node, nowMs) {
   const activeOnly = isChecked(activeOnlyEl, true);
 
   const rep = isRepeater(node.callsign);
+
+  // Repeaters toggle stays strict
   if (rep && !showRepeaters) return false;
-  if (!rep && !showHotspots) return false;
+
+  // Hotspots toggle OFF = show hotspots ONLY while talking
+  if (!rep && !showHotspots) {
+    if (!node.isTalker) return false;
+  }
 
   if (activeOnly && !node.online) return false;
 
