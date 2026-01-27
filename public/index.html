@@ -23,8 +23,6 @@
       sizes="16x16"
       type="image/png"
     />
-
-    <!-- iOS Home Screen icons -->
     <link
       rel="apple-touch-icon"
       href="/icons/apple-touch-icon.png"
@@ -45,634 +43,572 @@
       href="/icons/apple-touch-icon-120x120.png"
       sizes="120x120"
     />
-
-    <!-- PWA manifest (Android/desktop; iOS mostly ignores it for the icon) -->
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#0f172a" />
-
-    <!-- iOS “Add to Home Screen” web-app mode -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="SVX Repeater" />
-
-    <!-- Android/Chrome legacy -->
     <meta name="mobile-web-app-capable" content="yes" />
 
     <style>
-                  :root {
-                    --bg: #ffffff;
-                    --fg: #0f172a;
-                    --muted: #64748b;
-                    --chip: #eef2ff;
-                    --ok: #0a7;
-                    --ok-visited: #075;
-                    --bad: #b00;
-                    --border: #e5e7eb;
-                    --panel: #f8fafc;
-                    --accent: #a52a2a;
-                    --dark-brightness: 1.28;
-                    --dark-contrast: 0.96;
-                    --dark-saturation: 1.06;
-                    --hotspot: #ffa502;
+      :root {
+        --bg: #ffffff;
+        --fg: #0f172a;
+        --muted: #64748b;
+        --chip: #eef2ff;
+        --ok: #0a7;
+        --ok-visited: #075;
+        --bad: #b00;
+        --border: #e5e7eb;
+        --panel: #f8fafc;
+        --accent: #a52a2a; /* talking */
+        --hotspot: #ffa502;
+        --overlap: #800180; /* hotspots */
 
-                    --tableH: 36vh;
-                  }
-                  [data-theme="dark"] {
-                    --bg: #0b1220;
-                    --fg: #e6e8ee;
-                    --muted: #9aa3b2;
-                    --chip: #1b2538;
-                    --ok: #35c48d;
-                    --ok-visited: #238b66;
-                    --bad: #ff6b6b;
-                    --border: #1f2a3b;
-                    --panel: #0f172a;
-                    --accent: #a52a2a;
-                  }
+        --dark-brightness: 1.28;
+        --dark-contrast: 0.96;
+        --dark-saturation: 1.06;
 
-                  * {
-                    box-sizing: border-box;
-                  }
+        --tableH: 36vh;
 
-                  body {
-                    margin: 0;
-                    font:
-                      15px/1.45 system-ui,
-                      Segoe UI,
-                      Roboto,
-                      Arial,
-                      sans-serif;
-                    background: var(--bg);
-                    color: var(--fg);
-      	      height: 100dvh; /* dynamic viewport height */
-                    overflow: hidden;
-                    display: flex;
-                    flex-direction: column;
-                  }
+        --headerH: 72px; /* JS overrides */
+        --headerAnim: 260ms;
+      }
 
-      	    html, body {
+      [data-theme="dark"] {
+        --bg: #0b1220;
+        --fg: #e6e8ee;
+        --muted: #9aa3b2;
+        --chip: #1b2538;
+        --ok: #35c48d;
+        --ok-visited: #238b66;
+        --bad: #ff6b6b;
+        --border: #1f2a3b;
+        --panel: #0f172a;
+        --accent: #a52a2a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
         height: 100%;
-        overscroll-behavior: none; /* voorkomt “rubber band” scroll chaining op veel browsers */
+        overscroll-behavior: none;
       }
 
-      /* fallback als dvh niet ondersteund is */
-      @supports not (height: 100dvh){
-        body { height: 100vh; }
+      body {
+        margin: 0;
+        font:
+          15px/1.45 system-ui,
+          Segoe UI,
+          Roboto,
+          Arial,
+          sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        height: 100dvh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      @supports not (height: 100dvh) {
+        body {
+          height: 100vh;
+        }
       }
 
-      /* voorkom dat de table overscroll doorgeeft */
-      .tableFrame{
+      header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        transform: translateY(0);
+        transition: transform var(--headerAnim) ease;
+      }
+      body.header-hidden header {
+        transform: translateY(calc(-1 * var(--headerH)));
+      }
+
+      main {
+        padding-top: var(--headerH);
+        transition: padding-top var(--headerAnim) ease;
+
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      body.header-hidden main {
+        padding-top: 0;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .toolbar {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+        width: 100%;
+      }
+      .toolbar .spacer {
+        flex: 1;
+      }
+
+      .conn {
+        font-size: 13px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: var(--chip);
+      }
+      .ok {
+        color: var(--ok);
+      }
+      .bad {
+        color: var(--bad);
+      }
+
+      select {
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--fg);
+        font: inherit;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      label.check {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        user-select: none;
+      }
+      label.check input {
+        transform: scale(1.05);
+      }
+
+      /* Theme toggle */
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 52px;
+        height: 28px;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #cfd7e3;
+        border-radius: 999px;
+        transition: 0.2s;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 22px;
+        width: 22px;
+        left: 3px;
+        top: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: 0.2s;
+      }
+      input:checked + .slider {
+        background: var(--accent);
+      }
+      input:checked + .slider:before {
+        transform: translateX(24px);
+      }
+      .legend {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .tableFrame {
+        height: var(--tableH);
+        min-height: 220px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        overflow: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
       }
+      .tableFrame::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
 
-                  header {
-                    padding: 12px 16px;
-                    border-bottom: 1px solid var(--border);
-                    display: flex;
-                    gap: 12px;
-                    align-items: center;
-                    flex-wrap: wrap;
-                  }
-                  h1 {
-                    margin: 0;
-                    font-size: 18px;
-                  }
-                  .row {
-                    display: flex;
-                    gap: 12px;
-                    align-items: center;
-                    flex-wrap: wrap;
-                  }
-                  .toolbar {
-                    display: flex;
-                    gap: 14px;
-                    align-items: center;
-                    flex-wrap: wrap;
-                  }
-                  .toolbar .spacer {
-                    flex: 1;
-                  }
-                  .conn {
-                    font-size: 13px;
-                    padding: 4px 8px;
-                    border-radius: 999px;
-                    background: var(--chip);
-                  }
-                  .ok {
-                    color: var(--ok);
-                  }
-                  .bad {
-                    color: var(--bad);
-                  }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      thead th {
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        z-index: 2;
+      }
+      th,
+      td {
+        padding: 10px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+      th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 600;
+      }
 
-                  select {
-                    padding: 6px 8px;
-                    border: 1px solid var(--border);
-                    border-radius: 8px;
-                    background: var(--bg);
-                    color: var(--fg);
-                    font: inherit;
-                  }
+      th.narrow,
+      td.narrow {
+        width: 34px;
+        padding: 10px 6px;
+      }
+      td.center,
+      th.center {
+        text-align: center;
+      }
 
-                  label.check {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 4px 10px;
-                    border-radius: 999px;
-                    background: var(--panel);
-                    border: 1px solid var(--border);
-                    user-select: none;
-                  }
-                  label.check input {
-                    transform: scale(1.05);
-                  }
+      th.tg,
+      td.tg {
+        width: 32px;
+        padding: 6px 4px;
+        text-align: center;
+      }
+      th.tg > span {
+        display: inline-block;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        letter-spacing: 0.5px;
+      }
 
+      .dotOnline,
+      .dotOffline {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+      }
+      .dotOnline {
+        background: var(--ok);
+      }
+      .dotOffline {
+        background: var(--bad);
+      }
 
-            .muted{ color:var(--muted); font-size:13px; }
+      .leaflet-tooltip.talkLabel {
+        background: var(--panel);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-weight: 800;
+        font-size: 12px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+      }
+      .leaflet-tooltip.talkLabel:before {
+        border-top-color: var(--panel);
+      }
 
-                  /* Theme toggle (slider) */
-                  .switch {
-                    position: relative;
-                    display: inline-block;
-                    width: 52px;
-                    height: 28px;
-                  }
-                  .switch input {
-                    opacity: 0;
-                    width: 0;
-                    height: 0;
-                  }
-                  .slider {
-                    position: absolute;
-                    cursor: pointer;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: #cfd7e3;
-                    border-radius: 999px;
-                    transition: 0.2s;
-                  }
-                  .slider:before {
-                    position: absolute;
-                    content: "";
-                    height: 22px;
-                    width: 22px;
-                    left: 3px;
-                    top: 3px;
-                    background: white;
-                    border-radius: 50%;
-                    transition: 0.2s;
-                  }
-                  input:checked + .slider {
-                    background: var(--accent);
-                  }
-                  input:checked + .slider:before {
-                    transform: translateX(24px);
-                  }
-                  .legend {
-                    font-size: 12px;
-                    color: var(--muted);
-                  }
+      /* Center / reset button (Leaflet control) */
+      .leaflet-bar a.leaflet-control-center {
+        background: var(--panel);
+        color: var(--fg);
+        border-bottom: none;
+        width: 34px;
+        height: 34px;
+        line-height: 34px;
+        text-align: center;
+        font-weight: 900;
+        font-size: 16px;
+      }
+      .leaflet-bar a.leaflet-control-center:hover {
+        background: rgba(127, 127, 127, 0.14);
+      }
 
-                  :root {
-                    --headerH: 72px; /* JS will override with exact measured height */
-                    --headerAnim: 260ms;
-                  }
+      .tgCheck {
+        display: inline-flex;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        align-items: center;
+        justify-content: center;
+        background: rgba(59, 130, 246, 0.16);
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        color: rgba(147, 197, 253, 1);
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .tgTalkDot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+        background: var(--ok);
+        border: 1px solid rgba(0, 0, 0, 0.15);
+      }
 
-                  /* Make the top bar slide in/out */
-                  header {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    z-index: 1000;
-                    transform: translateY(0);
-                    transition: transform var(--headerAnim) ease;
-                  }
+      .timeNow {
+        color: var(--ok);
+        font-weight: 700;
+      }
+      tr.talkingRow td {
+        background: rgba(53, 196, 141, 0.06);
+      }
 
-                  /* When hidden, slide header up */
-                  body.header-hidden header {
-                    transform: translateY(calc(-1 * var(--headerH)));
-                  }
+      #map {
+        flex: 1;
+        min-height: 320px;
+        border-bottom: 1px solid var(--border);
+      }
 
-                  /* Push content down when header is visible */
-                  main {
-                    padding-top: var(--headerH);
-                    transition: padding-top var(--headerAnim) ease;
-                  }
+      .tiles-dark-soft img.leaflet-tile {
+        filter: brightness(var(--dark-brightness))
+          contrast(var(--dark-contrast)) saturate(var(--dark-saturation));
+      }
 
-                  /* When header is hidden, remove padding so content moves up */
-                  body.header-hidden main {
-                    padding-top: 0;
-                  }
+      /* Footer (desktop visible; mobile hidden) */
+      footer.site-footer {
+        border-top: 1px solid var(--border);
+        background: var(--panel);
+        padding: 10px 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      footer.site-footer a {
+        color: var(--ok);
+        text-decoration: none;
+      }
+      footer.site-footer a:hover {
+        text-decoration: underline;
+      }
+      footer.site-footer a:visited {
+        color: var(--ok-visited);
+      }
 
-                  main {
-                    flex: 1;
-                    min-height: 0;
-                    display: flex;
-                    flex-direction: column;
-                  }
+      /* Three-column footer: left / CENTER (AUP) / right */
+      .footer-row {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+      .footer-left {
+        justify-self: start;
+      }
+      .footer-center {
+        justify-self: center;
+        white-space: nowrap;
+      }
+      .footer-right {
+        justify-self: end;
+        white-space: nowrap;
+      }
 
-                  .tableFrame {
-                    height: var(--tableH);
-                    min-height: 220px;
-                    background: var(--panel);
-                    border-bottom: 1px solid var(--border);
-                    overflow: auto;
-                    scrollbar-width: none;
-                    -ms-overflow-style: none;
-                  }
-                  .tableFrame::-webkit-scrollbar {
-                    width: 0;
-                    height: 0;
-                  }
+      @media (max-width: 980px) {
+        :root {
+          --tableH: 46vh;
+        }
+        table {
+          min-width: 900px;
+        }
+        .footer-row {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+        .footer-center,
+        .footer-right {
+          justify-self: start;
+        }
+      }
 
-                  table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 14px;
-                    /* IMPORTANT: no min-width here — mobile must be able to fit */
-                  }
+      /* Floating tooltip */
+      #tooltip {
+        position: fixed;
+        z-index: 9999;
+        pointer-events: none;
+        background: var(--panel);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 12px;
+        line-height: 1.35;
+        max-width: 360px;
+        white-space: pre-wrap;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      }
+      #tooltip.hidden {
+        display: none;
+      }
+      th.tg {
+        cursor: help;
+      }
+      .csHover {
+        cursor: help;
+      }
 
-                  /* Only keep the big width on desktop where TG columns exist */
-                  @media (max-width: 720px) {
-            	       /* Show controls back on mobile */
-              #showControls{
-                flex-basis:100%;     /* force it on its own line */
-                display:flex;
-                gap:8px;
-                flex-wrap:wrap;
-                align-items:center;
-              }
+      .desktopOnly {
+        display: initial;
+      }
 
-              /* Optional: hide the word "Show:" to save space */
-              #showControls .muted{ display:none; }
+      /* Mobile callsign dot */
+      .mDot {
+        display: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 700;
+        margin-right: 8px;
+        line-height: 1;
+        color: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.18);
+      }
+      [data-theme="dark"] .mDot {
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+      .mDot.online {
+        background: var(--ok);
+      }
+      .mDot.offline {
+        background: var(--bad);
+      }
+      .mDot.talking {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+      }
 
-              /* Make pills a bit smaller on mobile */
-              label.check{
-                padding:3px 8px;
-                font-size:13px;
-              }
+      /* Mobile */
+      @media (max-width: 720px) {
+        .desktopOnly {
+          display: none !important;
+        }
 
-              /* Keep Window + Dark nicely aligned */
-              header .toolbar{
-                width:100%;
-                gap:10px;
-              }
-            }
-                    /* Keep your existing rules (desktopOnly hide, TG hide, mDot show, etc.) */
-                    .leaflet-control-zoom {
-                      display: none !important;
-                    }
+        header {
+          padding: 10px 12px;
+        }
+        header h1 {
+          font-size: 16px;
+        }
+        header .toolbar {
+          gap: 10px;
+        }
 
-                    /* Hide Leaflet attribution line */
-                    .leaflet-control-attribution {
-                      display: none !important;
-                    }
+        #showControls {
+          flex-basis: 100%;
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+        #showControls .muted {
+          display: none;
+        }
+        label.check {
+          padding: 3px 8px;
+          font-size: 13px;
+        }
 
-                    /* Hide footer disclaimer on mobile */
-                    footer {
-                      display: none !important;
-                    }
+        /* Hide Leaflet zoom + attribution ONLY on mobile */
+        .leaflet-control-zoom {
+          display: none !important;
+        }
+        .leaflet-control-attribution {
+          display: none !important;
+        }
 
-                    /* Prevent horizontal scroll on mobile */
-                    .tableFrame {
-                      overflow-x: hidden;
-                      overflow-y: auto;
-                    }
+        /* Hide footer ONLY on mobile */
+        footer.site-footer {
+          display: none !important;
+        }
 
-                    /* Force the table to fit the viewport */
-                    table {
-                      min-width: 0 !important;
-                      table-layout: fixed;
-                    }
+        /* Table: hide first column + TG matrix columns */
+        table thead th:nth-child(1),
+        table tbody td:nth-child(1) {
+          display: none;
+        }
+        th[data-tg],
+        td.tg {
+          display: none;
+        }
+        .mDot {
+          display: inline-flex;
+        }
 
-                    /* Column sizing (based on ORIGINAL column indices) */
-                    /* col 1 is hidden, so these are: 2=callsign, 3=location, 4=time */
-                    table thead th:nth-child(2),
-                    table tbody td:nth-child(2) {
-                      width: 38%;
-                      white-space: nowrap;
-                    }
+        .tableFrame {
+          overflow-x: hidden;
+          overflow-y: auto;
+        }
+        table {
+          table-layout: fixed;
+          min-width: 0 !important;
+        }
 
-                    table thead th:nth-child(3),
-                    table tbody td:nth-child(3) {
-                      width: 47%;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      white-space: nowrap;
-                    }
-
-                    table thead th:nth-child(4),
-                    table tbody td:nth-child(4) {
-                      width: 15%;
-                      white-space: nowrap;
-                    }
-                  }
-
-                  thead th {
-                    position: sticky;
-                    top: 0;
-                    background: var(--panel);
-                    z-index: 2;
-                  }
-                  th,
-                  td {
-                    padding: 10px 10px;
-                    border-bottom: 1px solid var(--border);
-                    vertical-align: middle;
-                  }
-                  th {
-                    text-align: left;
-                    color: var(--muted);
-                    font-weight: 600;
-                  }
-
-                  th.narrow,
-                  td.narrow {
-                    width: 34px;
-                    padding: 10px 6px;
-                  }
-                  td.center,
-                  th.center {
-                    text-align: center;
-                  }
-
-                  th.tg,
-                  td.tg {
-                    width: 32px;
-                    padding: 6px 4px;
-                    text-align: center;
-                  }
-                  th.tg > span {
-                    display: inline-block;
-                    writing-mode: vertical-rl;
-                    transform: rotate(180deg);
-                    letter-spacing: 0.5px;
-                  }
-
-                  /* Left status dot (online indicator) */
-                  .dotOnline {
-                    width: 14px;
-                    height: 14px;
-                    border-radius: 50%;
-                    display: inline-block;
-                    background: var(--ok);
-                    border: 1px solid rgba(0, 0, 0, 0.15);
-                  }
-                  .dotOffline {
-                    width: 14px;
-                    height: 14px;
-                    border-radius: 50%;
-                    display: inline-block;
-                    background: var(--bad); /* RED */
-                    border: 1px solid rgba(0, 0, 0, 0.15);
-                  }
-
-                  /* Callsign label shown on map while TALKING */
-                  .leaflet-tooltip.talkLabel {
-                    background: var(--panel);
-                    color: var(--fg);
-                    border: 1px solid var(--border);
-                    border-radius: 10px;
-                    padding: 2px 8px;
-                    font-weight: 800;
-                    font-size: 12px;
-                    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-                  }
-
-                  /* Tooltip arrow color */
-                  .leaflet-tooltip.talkLabel:before {
-                    border-top-color: var(--panel);
-                  }
-
-                  /* Center / reset button (Leaflet control) */
-                  .leaflet-bar a.leaflet-control-center {
-                    background: var(--panel);
-                    color: var(--fg);
-                    border-bottom: none;
-                    width: 34px;
-                    height: 34px;
-                    line-height: 34px;
-                    text-align: center;
-                    font-weight: 900;
-                    font-size: 16px;
-                  }
-
-                  .leaflet-bar a.leaflet-control-center:hover {
-                    background: rgba(127, 127, 127, 0.14);
-                  }
-
-                  /* TG checkmarks (blue) */
-                  .tgCheck {
-                    display: inline-flex;
-                    width: 18px;
-                    height: 18px;
-                    border-radius: 50%;
-                    align-items: center;
-                    justify-content: center;
-                    background: rgba(59, 130, 246, 0.16);
-                    border: 1px solid rgba(59, 130, 246, 0.35);
-                    color: rgba(147, 197, 253, 1);
-                    font-size: 12px;
-                    font-weight: 900;
-                    line-height: 1;
-                  }
-
-                  /* TG talking dot (green) */
-                  .tgTalkDot {
-                    width: 14px;
-                    height: 14px;
-                    border-radius: 50%;
-                    display: inline-block;
-                    background: var(--ok);
-                    border: 1px solid rgba(0, 0, 0, 0.15);
-                  }
-
-                  .timeNow {
-                    color: var(--ok);
-                    font-weight: 700;
-                  }
-                  tr.talkingRow td {
-                    background: rgba(53, 196, 141, 0.06);
-                  }
-
-                  #map {
-                    flex: 1;
-                    min-height: 320px;
-                    border-bottom: 1px solid var(--border);
-                  }
-
-                  .tiles-dark-soft img.leaflet-tile {
-                    filter: brightness(var(--dark-brightness))
-                      contrast(var(--dark-contrast)) saturate(var(--dark-saturation));
-                  }
-
-                  @media (max-width: 980px) {
-                    :root {
-                      --tableH: 46vh;
-                    }
-                    table {
-                      min-width: 900px;
-                    }
-                  }
-
-                  footer {
-                    border-top: 1px solid var(--border);
-                    background: var(--panel);
-                    padding: 10px 16px;
-                    font-size: 13px;
-                    color: var(--muted);
-                  }
-                  footer strong {
-                    color: var(--fg);
-                  }
-                  footer a {
-                    color: var(--ok);
-                    text-decoration: none;
-                  }
-                  footer a:hover {
-                    text-decoration: underline;
-                  }
-                  footer a:visited {
-                    color: var(--ok-visited);
-                  }
-                  .footer-row {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 12px;
-                    flex-wrap: wrap; /* allows stacking on small screens */
-                  }
-                  .footer-left {
-                    min-width: 240px;
-                  }
-                  .footer-right {
-                    margin-left: auto;
-                    white-space: nowrap;
-                  }
-                  /* Floating tooltip (TG + callsign hover) */
-                  #tooltip {
-                    position: fixed;
-                    z-index: 9999;
-                    pointer-events: none;
-                    background: var(--panel);
-                    color: var(--fg);
-                    border: 1px solid var(--border);
-                    border-radius: 10px;
-                    padding: 8px 10px;
-                    font-size: 12px;
-                    line-height: 1.35;
-                    max-width: 360px;
-                    white-space: pre-wrap; /* allow \n in config */
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-                  }
-                  #tooltip.hidden {
-                    display: none;
-                  }
-
-                  th.tg {
-                    cursor: help;
-                  }
-                  .csHover {
-                    cursor: help;
-                  }
-
-                  /* Utility */
-                  .desktopOnly {
-                    display: initial;
-                  }
-
-                  /* Mobile callsign dot with TG inside (only visible on mobile) */
-                  .mDot {
-                    display: none;
-                    width: 18px;
-                    height: 18px;
-                    border-radius: 999px;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 10px;
-                    font-weight: 700;
-                    margin-right: 8px;
-                    line-height: 1;
-                    color: #fff;
-                    border: 1px solid rgba(0, 0, 0, 0.18);
-                  }
-                  [data-theme="dark"] .mDot {
-                    border-color: rgba(255, 255, 255, 0.18);
-                  }
-
-                  .mDot.online {
-                    background: var(--ok);
-                  }
-                  .mDot.offline {
-                    background: var(--bad);
-                  }
-                  .mDot.talking {
-                    width: 22px;
-                    height: 22px;
-                    font-size: 11px;
-                  }
-
-                  /* Mobile layout */
-                  @media (max-width: 720px) {
-                    /* Header: only title + window + dark toggle */
-                    .desktopOnly {
-                      display: none !important;
-                    }
-
-                    header {
-                      padding: 10px 12px;
-                    }
-                    header h1 {
-                      font-size: 16px;
-                    }
-                    header .toolbar {
-                      gap: 10px;
-                    }
-
-                    /* Table: hide the first column (status dot col) */
-                    table thead th:nth-child(1),
-                    table tbody td:nth-child(1) {
-                      display: none;
-                    }
-
-                    /* Table: hide all talkgroup matrix columns */
-                    th[data-tg],
-                    td.tg {
-                      display: none;
-                    }
-
-                    /* Show the mobile dot inside callsign */
-                    .mDot {
-                      display: inline-flex;
-                    }
-
-                    /* Slightly tighter rows on mobile */
-                    th,
-                    td {
-                      padding: 8px 8px;
-                    }
-
-                    /* Keep "heard" compact */
-                    td.center {
-                      white-space: nowrap;
-                    }
-
-                    /* Make location not explode the width */
-                    td:nth-child(3) {
-                      max-width: 52vw;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      white-space: nowrap;
-                    }
-                  }
+        table thead th:nth-child(2),
+        table tbody td:nth-child(2) {
+          width: 38%;
+          white-space: nowrap;
+        }
+        table thead th:nth-child(3),
+        table tbody td:nth-child(3) {
+          width: 47%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        table thead th:nth-child(4),
+        table tbody td:nth-child(4) {
+          width: 15%;
+          white-space: nowrap;
+        }
+      }
     </style>
   </head>
 
@@ -699,8 +635,8 @@
           >
         </div>
 
-        <label class="row"
-          >Window:
+        <label class="row">
+          Window:
           <select id="windowSelect">
             <option value="3600">1h</option>
             <option value="21600">6h</option>
@@ -729,7 +665,7 @@
               <th class="narrow center"></th>
               <th>Callsign</th>
               <th>Location</th>
-              <th class="center">🕒</th>
+              <th class="center">&#x1F552;</th>
               <!-- TG headers injected by JS -->
             </tr>
           </thead>
@@ -768,6 +704,12 @@
           >.
         </div>
 
+        <div class="footer-center">
+          <a href="/aup.pdf" target="_blank" rel="noopener noreferrer"
+            >Acceptable Use Policy</a
+          >
+        </div>
+
         <div class="footer-right">
           Hosted by
           <a href="https://rf.guru" target="_blank" rel="noopener noreferrer"
@@ -777,7 +719,8 @@
       </div>
     </footer>
 
-    <div id="tooltip" class="hidden" aria-hidden="true">&#128338;</div>
+    <div id="tooltip" class="hidden" aria-hidden="true"></div>
+
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       crossorigin="anonymous"

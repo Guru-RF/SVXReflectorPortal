@@ -9,6 +9,9 @@
  * - Callsign info in map popup under location (from CALLSIGN_INFO_JSON)
  * - Auto-hide header after 10s; scroll reveals
  * - Mobile: callsign dot contains TG when talking (CSS controls visibility)
+ *
+ * Updates:
+ * - Overlapping markers: spiderfy on click with TWO guide rings (bigger radius + spacing).
  */
 
 const TG_LIST = [
@@ -22,9 +25,18 @@ const BE_NE = [51.55, 6.41];
 
 const THEME_KEY = "svx-ui-theme";
 const MAP_HOME_KEY = "svx-map-home-v1";
-
-// Persist UI choices (Show + Window) in localStorage
 const UI_PREFS_KEY = "svx-ui-prefs-v1";
+
+// Overlap / spiderfy tuning
+const OVERLAP_DECIMALS = 6; // rounding for "same coordinate" detection
+const SPIDER_R1_PX = 56; // ring 1 radius (px)
+const SPIDER_R2_PX = 96; // ring 2 radius (px)
+const SPIDER_R1_CAP = 10; // max markers on ring 1
+const SPIDER_R2_CAP = 22; // max markers on ring 2 (total 32)
+const SPIDER_SEGMENTS = 72; // ring smoothness
+const OVERLAP_RING_COLOR_FALLBACK = "#800180"; // purple ring to indicate overlapping nodes
+const OVERLAP_RING_WEIGHT = 4; // stroke thickness for overlap ring
+const OVERLAP_RING_RADIUS_BONUS = 1; // extra radius so fill stays visible
 
 function loadUiPrefs() {
   try {
@@ -43,7 +55,6 @@ function saveUiPrefs(prefs) {
 function restoreUiPrefs() {
   const p = loadUiPrefs();
 
-  // Show toggles
   if (showRepeatersEl && typeof p.showRepeaters === "boolean")
     showRepeatersEl.checked = p.showRepeaters;
 
@@ -53,7 +64,6 @@ function restoreUiPrefs() {
   if (activeOnlyEl && typeof p.activeOnly === "boolean")
     activeOnlyEl.checked = p.activeOnly;
 
-  // Window dropdown
   if (windowSelectEl && p.windowSec != null) {
     const v = String(p.windowSec);
     const exists = Array.from(windowSelectEl.options).some(
@@ -61,8 +71,6 @@ function restoreUiPrefs() {
     );
     if (exists) windowSelectEl.value = v;
   }
-
-  // Dark is already persisted by THEME_KEY in applyTheme()/initThemeDefaultDark()
 }
 
 function persistUiPrefs() {
@@ -74,19 +82,17 @@ function persistUiPrefs() {
   });
 }
 
-/**
- * Optional local defaults (override / extend via /config.json)
- */
+/** Optional local defaults (override / extend via /config.json) */
 const LOCAL_TG_INFO = {};
 const LOCAL_CALLSIGN_INFO = {};
 
-// DOM (guarded where possible)
+// DOM
 const titleEl = document.getElementById("title");
 const statusEl = document.getElementById("status");
 const tbody = document.getElementById("tbody");
 const theadRow = document.getElementById("theadRow");
 
-// Tooltip element (auto-create if missing)
+// Tooltip element
 let tooltipEl = document.getElementById("tooltip");
 if (!tooltipEl) {
   tooltipEl = document.createElement("div");
@@ -96,7 +102,7 @@ if (!tooltipEl) {
   document.body.appendChild(tooltipEl);
 }
 
-// Optional controls (may be hidden on mobile via CSS; still exist in DOM)
+// Controls
 const showRepeatersEl = document.getElementById("showRepeaters");
 const showHotspotsEl = document.getElementById("showHotspots");
 const activeOnlyEl = document.getElementById("activeOnly");
@@ -125,7 +131,7 @@ const state = {
 
   wsOk: false,
 
-  // metadata (from config.json + LOCAL_* merged)
+  // metadata
   tgInfo: {},
   csInfo: {},
 
@@ -143,6 +149,12 @@ const state = {
   beBounds: null,
   focusMode: "home",
   focusKey: "",
+
+  // overlap / spiderfy
+  overlapIndex: new Map(), // coordKey -> markers[]
+  spiderKey: "",
+  spiderMarkers: [],
+  spiderRings: [], // leaflet polylines
 };
 
 function isRepeater(callsign) {
@@ -164,7 +176,7 @@ function toNumber(v) {
 
 function msAgoLabel(deltaMs) {
   const s = Math.floor(deltaMs / 1000);
-  if (!Number.isFinite(s) || s < 0) return "\u2014"; // em dash
+  if (!Number.isFinite(s) || s < 0) return "\u2014";
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m`;
@@ -179,16 +191,9 @@ function cssVar(name, fallback) {
   return v || fallback;
 }
 
-/**
- * Location formatting rule:
- * - First letter uppercase, rest lowercase
- * - After " " or "-" next letter uppercase
- * - If it looks like Maidenhead locator (KM25QG), keep uppercase
- */
 function formatLocation(raw) {
   let s = (raw ?? "").toString().trim();
   if (!s) return "";
-
   if (/^[A-Za-z]{2}\d{2}[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
 
   s = s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -197,14 +202,9 @@ function formatLocation(raw) {
   let capNext = true;
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    if (capNext && /[a-z\u00C0-\u017F]/.test(ch)) {
-      out += ch.toUpperCase();
-      capNext = false;
-    } else {
-      out += ch;
-      capNext = false;
-    }
-    if (ch === " " || ch === "-") capNext = true;
+    if (capNext && /[a-z\u00C0-\u017F]/.test(ch)) out += ch.toUpperCase();
+    else out += ch;
+    capNext = ch === " " || ch === "-";
   }
   return out;
 }
@@ -355,7 +355,6 @@ function initHoverTooltips() {
     hideTip();
   });
 
-  // Hide tooltip on scroll (table container might be .tableFrame or .listWrap depending on your HTML)
   const scrollHost =
     document.querySelector(".tableFrame") ||
     document.querySelector(".listWrap") ||
@@ -462,20 +461,17 @@ function initThemeDefaultDark() {
   applyTheme(dark);
 }
 
-if (themeToggleEl) {
+if (themeToggleEl)
   themeToggleEl.addEventListener("change", () =>
     applyTheme(themeToggleEl.checked),
   );
-}
 
 // ---------- TABLE HEADER ----------
 function buildTgHeader() {
   if (!theadRow) return;
-
   Array.from(theadRow.querySelectorAll("th[data-tg]")).forEach((x) =>
     x.remove(),
   );
-
   for (const tg of TG_LIST) {
     const th = document.createElement("th");
     th.className = "tg";
@@ -485,6 +481,7 @@ function buildTgHeader() {
   }
 }
 
+// ---------- Map home view persistence ----------
 function loadMapHome() {
   try {
     const raw = localStorage.getItem(MAP_HOME_KEY);
@@ -521,12 +518,8 @@ function goHomeView(animated = true) {
   state.homeView = v || null;
 
   state.mapAutoMove = true;
-  if (v) {
-    state.map.setView([v.lat, v.lng], v.zoom, { animate: animated });
-  } else {
-    // fallback = Belgium
-    state.map.fitBounds(state.beBounds, { padding: [20, 20] });
-  }
+  if (v) state.map.setView([v.lat, v.lng], v.zoom, { animate: animated });
+  else state.map.fitBounds(state.beBounds, { padding: [20, 20] });
 
   state.focusMode = "home";
   state.focusKey = "";
@@ -536,34 +529,26 @@ function addCenterControl() {
   if (!state.map || typeof L === "undefined") return;
 
   const CenterControl = L.Control.extend({
-    options: { position: "topright" }, // ✅ rechtsboven
-    onAdd: function (map) {
+    options: { position: "topright" },
+    onAdd: function () {
       const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
       const btn = L.DomUtil.create("a", "leaflet-control-center", container);
 
       btn.href = "#";
       btn.title = "Center map (reset to default)";
       btn.setAttribute("aria-label", "Center map (reset to default)");
+      btn.innerHTML = "&#x2316;"; // ⌖
 
-      // Crosshair icon (works everywhere, no extra fonts)
-      btn.innerHTML = "⌖";
-
-      // Prevent clicks from triggering map drag/click handlers
       L.DomEvent.disableClickPropagation(container);
       L.DomEvent.disableScrollPropagation(container);
 
       L.DomEvent.on(btn, "click", (e) => {
         L.DomEvent.preventDefault(e);
-
-        // Clear saved home view so default is truly Belgium again
         try {
           localStorage.removeItem(MAP_HOME_KEY);
         } catch {}
-
         state.homeView = null;
-
-        // Go back to default (Belgium)
-        goHomeView(true); // will fallback to Belgium bounds when no home view exists
+        goHomeView(true);
       });
 
       return container;
@@ -571,6 +556,186 @@ function addCenterControl() {
   });
 
   state.map.addControl(new CenterControl());
+}
+
+// ---------- Overlap / spiderfy helpers ----------
+function coordKey(lat, lon) {
+  return `${Number(lat).toFixed(OVERLAP_DECIMALS)},${Number(lon).toFixed(OVERLAP_DECIMALS)}`;
+}
+
+function ringLatLngs(baseLatLng, radiusPx) {
+  const pts = [];
+  const center = state.map.latLngToLayerPoint(baseLatLng);
+  for (let i = 0; i <= SPIDER_SEGMENTS; i++) {
+    const a = (i / SPIDER_SEGMENTS) * Math.PI * 2;
+    const pt = L.point(
+      center.x + radiusPx * Math.cos(a),
+      center.y + radiusPx * Math.sin(a),
+    );
+    pts.push(state.map.layerPointToLatLng(pt));
+  }
+  return pts;
+}
+
+function unspiderfy() {
+  if (!state.map) return;
+
+  if (state.spiderMarkers && state.spiderMarkers.length) {
+    for (const m of state.spiderMarkers) {
+      if (m && m._svxBaseLatLng) {
+        try {
+          m.setLatLng(m._svxBaseLatLng);
+        } catch {}
+      }
+    }
+  }
+
+  if (state.spiderRings && state.spiderRings.length) {
+    for (const r of state.spiderRings) {
+      try {
+        state.map.removeLayer(r);
+      } catch {}
+    }
+  }
+
+  state.spiderMarkers = [];
+  state.spiderRings = [];
+  state.spiderKey = "";
+  applyOverlapIndicators();
+}
+
+function rebuildOverlapIndex() {
+  state.overlapIndex = new Map();
+  function addMarker(m) {
+    if (!m || !m._svxBaseKey) return;
+    const key = m._svxBaseKey;
+    const arr = state.overlapIndex.get(key) || [];
+    arr.push(m);
+    state.overlapIndex.set(key, arr);
+  }
+  for (const m of state.repMarkers.values()) addMarker(m);
+  for (const m of state.hsMarkers.values()) addMarker(m);
+}
+
+function applyOverlapIndicators() {
+  if (!state.map) return;
+
+  for (const [cs, m] of state.repMarkers.entries()) {
+    const n = state.nodes.get(cs);
+    if (!n || !m) continue;
+    const key = m._svxBaseKey || "";
+    const group = key ? state.overlapIndex.get(key) : null;
+    const overlap = !!group && group.length > 1 && state.spiderKey !== key;
+    setRepeaterStyle(m, n, overlap);
+  }
+
+  for (const [cs, m] of state.hsMarkers.entries()) {
+    const n = state.nodes.get(cs);
+    if (!n || !m) continue;
+    const key = m._svxBaseKey || "";
+    const group = key ? state.overlapIndex.get(key) : null;
+    const overlap = !!group && group.length > 1 && state.spiderKey !== key;
+    setHotspotStyle(m, n, overlap);
+  }
+}
+
+function placeOnRing(markers, baseLatLng, radiusPx, offsetAngle = 0) {
+  const center = state.map.latLngToLayerPoint(baseLatLng);
+  const n = markers.length;
+  if (!n) return;
+  for (let i = 0; i < n; i++) {
+    const a = offsetAngle + (i / n) * Math.PI * 2;
+    const pt = L.point(
+      center.x + radiusPx * Math.cos(a),
+      center.y + radiusPx * Math.sin(a),
+    );
+    const ll = state.map.layerPointToLatLng(pt);
+    try {
+      markers[i].setLatLng(ll);
+    } catch {}
+  }
+}
+
+function spiderfyKey(key) {
+  if (!state.map || typeof L === "undefined") return;
+
+  const group = state.overlapIndex.get(key) || [];
+  if (group.length <= 1) return;
+  if (state.spiderKey === key) return;
+
+  unspiderfy();
+
+  const sorted = group.slice().sort((a, b) => {
+    const at = a?._svxIsTalker ? 1 : 0;
+    const bt = b?._svxIsTalker ? 1 : 0;
+    if (at !== bt) return bt - at;
+    const ac = a?._svxCallsign || "";
+    const bc = b?._svxCallsign || "";
+    return ac.localeCompare(bc);
+  });
+
+  const base = sorted[0]._svxBaseLatLng;
+  if (!base) return;
+
+  const ringColor = cssVar("--border", "#94a3b8");
+  const r1 = L.polyline(ringLatLngs(base, SPIDER_R1_PX), {
+    color: ringColor,
+    weight: 2,
+    opacity: 0.55,
+    dashArray: "6 6",
+    interactive: false,
+  }).addTo(state.map);
+
+  const r2 = L.polyline(ringLatLngs(base, SPIDER_R2_PX), {
+    color: ringColor,
+    weight: 2,
+    opacity: 0.35,
+    dashArray: "2 8",
+    interactive: false,
+  }).addTo(state.map);
+
+  state.spiderRings = [r1, r2];
+
+  const ring1 = sorted.slice(0, Math.min(sorted.length, SPIDER_R1_CAP));
+  const ring2 = sorted.slice(
+    ring1.length,
+    Math.min(sorted.length, SPIDER_R1_CAP + SPIDER_R2_CAP),
+  );
+  const rest = sorted.slice(ring1.length + ring2.length);
+
+  placeOnRing(ring1, base, SPIDER_R1_PX, 0);
+  placeOnRing(ring2, base, SPIDER_R2_PX, Math.PI / 10);
+  if (rest.length) placeOnRing(rest, base, SPIDER_R2_PX + 34, Math.PI / 6);
+
+  state.spiderKey = key;
+  state.spiderMarkers = sorted;
+
+  normalizeMarkerZOrder();
+  applyOverlapIndicators();
+}
+
+function bindSpiderfyClick(marker) {
+  if (!marker || marker._svxSpiderBound) return;
+  marker._svxSpiderBound = true;
+
+  marker.on("click", (ev) => {
+    try {
+      if (ev && ev.originalEvent && typeof L !== "undefined")
+        L.DomEvent.stopPropagation(ev.originalEvent);
+    } catch {}
+
+    const key = marker._svxBaseKey;
+    if (!key) return;
+
+    const group = state.overlapIndex.get(key) || [];
+    if (group.length > 1 && state.spiderKey !== key) {
+      try {
+        marker.closePopup();
+      } catch {}
+      spiderfyKey(key);
+      return;
+    }
+  });
 }
 
 // ---------- MAP ----------
@@ -603,32 +768,31 @@ function initMap() {
 
   state.markerLayer = L.layerGroup().addTo(map);
   state.beBounds = L.latLngBounds([BE_SW, BE_NE]);
+
   addCenterControl();
 
-  // Restore saved "home view" (or default to Belgium)
   state.homeView = loadMapHome();
   state.mapAutoMove = true;
-  if (state.homeView) {
+  if (state.homeView)
     map.setView([state.homeView.lat, state.homeView.lng], state.homeView.zoom, {
       animate: false,
     });
-  } else {
-    map.fitBounds(state.beBounds, { padding: [20, 20] });
-  }
+  else map.fitBounds(state.beBounds, { padding: [20, 20] });
+
   state.focusMode = "home";
   state.focusKey = "";
 
-  // Save home view when USER pans/zooms (ignore programmatic moves)
+  // Collapse spiderfy on background click / move / zoom
+  map.on("click", () => unspiderfy());
+  map.on("zoomstart", () => unspiderfy());
+  map.on("movestart", () => unspiderfy());
+
   map.on("moveend", () => {
     if (state.mapAutoMove) {
       state.mapAutoMove = false;
       return;
     }
-
-    // user moved => become new home
     saveMapHomeFromMap();
-
-    // if no outside talkers, we are in home mode
     if (visibleTalkersOutsideBelgium().length === 0) {
       state.focusMode = "home";
       state.focusKey = "";
@@ -640,13 +804,6 @@ function coordInBelgium(lat, lon) {
   return (
     lat >= BE_SW[0] && lat <= BE_NE[0] && lon >= BE_SW[1] && lon <= BE_NE[1]
   );
-}
-
-function resetMapToBelgium() {
-  if (!state.map) return;
-  state.map.fitBounds(state.beBounds, { padding: [20, 20] });
-  state.focusMode = "be";
-  state.focusKey = "";
 }
 
 function callsignInfoText(callsign) {
@@ -678,7 +835,6 @@ function upsertMarker(mapKey, callsign, lat, lon, popupHtml) {
     });
     m.addTo(state.markerLayer);
 
-    // Wider popup (adjust as you like)
     m.bindPopup(popupHtml, {
       maxWidth: 460,
       minWidth: 300,
@@ -707,9 +863,9 @@ function setTalkLabel(marker, callsign, enabled) {
       const txt = String(callsign || "").toUpperCase();
       if (!txt) return;
 
-      if (marker.getTooltip && marker.getTooltip()) {
+      if (marker.getTooltip && marker.getTooltip())
         marker.setTooltipContent(txt);
-      } else {
+      else {
         marker.bindTooltip(txt, {
           permanent: true,
           direction: "top",
@@ -724,59 +880,78 @@ function setTalkLabel(marker, callsign, enabled) {
   } catch {}
 }
 
-function setRepeaterStyle(marker, node) {
+function setRepeaterStyle(marker, node, overlap = false) {
   const accent = cssVar("--accent", "#A52A2A"); // RED while talking
   const ok = cssVar("--ok", "#35c48d"); // green when online
   const muted = "rgba(148,163,184,.55)";
+  const ring = cssVar("--overlap", OVERLAP_RING_COLOR_FALLBACK);
 
-  let color = muted;
+  // Fill color expresses state (online / talking). Stroke is normally same as fill,
+  // but becomes a thick purple ring when multiple nodes share the same coordinates.
+  let fill = muted;
   let radius = 5;
   let fillOpacity = 0.3;
   let weight = 1;
 
   if (node.online) {
-    color = ok;
+    fill = ok;
     fillOpacity = 0.55;
     radius = 6;
   }
   if (node.isTalker) {
-    color = accent;
+    fill = accent;
     fillOpacity = 1.0;
     radius = 8;
     weight = 4;
   }
 
+  let stroke = fill;
+  if (overlap) {
+    stroke = ring;
+    weight = Math.max(weight, OVERLAP_RING_WEIGHT);
+    radius = radius + OVERLAP_RING_RADIUS_BONUS;
+  }
+
   marker.setStyle({
-    color,
-    fillColor: color,
+    color: stroke,
+    fillColor: fill,
     radius,
     fillOpacity,
     weight,
     opacity: 1,
   });
+
   setTalkLabel(marker, node.callsign, !!node.isTalker);
 }
 
-function setHotspotStyle(marker, node) {
+function setHotspotStyle(marker, node, overlap = false) {
   const accent = cssVar("--accent", "#A52A2A"); // RED while talking
   const hs = cssVar("--hotspot", "#FFA502"); // ORANGE for hotspots
+  const ring = cssVar("--overlap", OVERLAP_RING_COLOR_FALLBACK);
 
-  let color = hs;
+  // Fill color expresses hotspot state. Stroke becomes purple when overlapping.
+  let fill = hs;
   let radius = 6;
   let fillOpacity = node.online ? 0.65 : 0.25;
   let weight = 1;
 
-  // Talking overrides color/size
   if (node.isTalker) {
-    color = accent;
+    fill = accent;
     radius = 8;
     fillOpacity = 1.0;
     weight = 4;
   }
 
+  let stroke = fill;
+  if (overlap) {
+    stroke = ring;
+    weight = Math.max(weight, OVERLAP_RING_WEIGHT);
+    radius = radius + OVERLAP_RING_RADIUS_BONUS;
+  }
+
   marker.setStyle({
-    color,
-    fillColor: color,
+    color: stroke,
+    fillColor: fill,
     radius,
     fillOpacity,
     weight,
@@ -820,20 +995,21 @@ function updateMapFocus() {
     if (state.focusMode !== "out" || state.focusKey !== key) {
       const b = L.latLngBounds([BE_SW, BE_NE]);
       outside.forEach((n) => b.extend([n.lat, n.lon]));
-
       state.mapAutoMove = true;
       state.map.fitBounds(b, { padding: [30, 30] });
-
       state.focusMode = "out";
       state.focusKey = key;
     }
     return;
   }
+
   if (state.focusMode !== "home") goHomeView();
 }
 
 function updateMapMarkers() {
   if (!state.map) return;
+
+  unspiderfy();
 
   const showRepeaters = isChecked(showRepeatersEl, true);
   const showHotspots = isChecked(showHotspotsEl, true);
@@ -859,11 +1035,15 @@ function updateMapMarkers() {
 
       const popup = popupHtmlForNode(n.callsign, loc);
       const m = upsertMarker(state.repMarkers, n.callsign, lat, lon, popup);
+
+      m._svxCallsign = String(n.callsign || "").toUpperCase();
+      m._svxIsTalker = !!n.isTalker;
+      m._svxBaseLatLng = L.latLng(lat, lon);
+      m._svxBaseKey = coordKey(lat, lon);
+      bindSpiderfyClick(m);
+
       setRepeaterStyle(m, { ...n, lat, lon });
     } else {
-      // Hotspots:
-      // - If Hotspots toggle ON: show all hotspots (respect Active-only for offline)
-      // - If Hotspots toggle OFF: show ONLY while talking
       if (!showHotspots && !n.isTalker) {
         removeMarker(state.hsMarkers, n.callsign);
         continue;
@@ -872,7 +1052,6 @@ function updateMapMarkers() {
       if (!showHotspots && n.isTalker) {
         // allow talking hotspot even if hotspots are disabled
       } else {
-        // hotspots enabled -> still respect active-only for offline
         if (activeOnly && !n.online) {
           removeMarker(state.hsMarkers, n.callsign);
           continue;
@@ -881,34 +1060,38 @@ function updateMapMarkers() {
 
       const popup = popupHtmlForNode(n.callsign, loc);
       const m = upsertMarker(state.hsMarkers, n.callsign, lat, lon, popup);
+
+      m._svxCallsign = String(n.callsign || "").toUpperCase();
+      m._svxIsTalker = !!n.isTalker;
+      m._svxBaseLatLng = L.latLng(lat, lon);
+      m._svxBaseKey = coordKey(lat, lon);
+      bindSpiderfyClick(m);
+
       setHotspotStyle(m, { ...n, lat, lon });
     }
   }
 
-  // cleanup markers for removed nodes
   for (const cs of Array.from(state.repMarkers.keys())) {
     if (!state.nodes.has(cs)) removeMarker(state.repMarkers, cs);
   }
   for (const cs of Array.from(state.hsMarkers.keys())) {
     if (!state.nodes.has(cs)) removeMarker(state.hsMarkers, cs);
   }
+
+  rebuildOverlapIndex();
+  applyOverlapIndicators();
   normalizeMarkerZOrder();
 }
 
 function normalizeMarkerZOrder() {
-  // Put non-talking hotspots behind everything
   for (const [cs, m] of state.hsMarkers.entries()) {
     const n = state.nodes.get(cs);
     if (!m || !n) continue;
     if (!n.isTalker && m.bringToBack) m.bringToBack();
   }
-
-  // Keep repeaters above hotspots (even when not talking)
   for (const [, m] of state.repMarkers.entries()) {
     if (m && m.bringToFront) m.bringToFront();
   }
-
-  // Finally: all talkers on top (repeaters + hotspots)
   for (const n of state.nodes.values()) {
     if (!n.isTalker) continue;
     const m = isRepeater(n.callsign)
@@ -932,8 +1115,8 @@ function renderStatus() {
     (n) => n.isTalker,
   ).length;
 
-  const dot = "\u2022"; // bullet
-  const ell = "\u2026"; // ellipsis
+  const dot = "\u2022";
+  const ell = "\u2026";
 
   statusEl.textContent = state.wsOk
     ? `Connected ${dot} Online: ${online} ${dot} Offline: ${offline} ${dot} Talking: ${talking}`
@@ -964,10 +1147,8 @@ function shouldShowInTable(node, nowMs) {
 
   const rep = isRepeater(node.callsign);
 
-  // Repeaters toggle stays strict
   if (rep && !showRepeaters) return false;
 
-  // Hotspots toggle OFF = show hotspots ONLY while talking
   if (!rep && !showHotspots) {
     if (!node.isTalker) return false;
   }
@@ -981,7 +1162,6 @@ function shouldShowInTable(node, nowMs) {
 
   const last = state.lastHeard.get(node.callsign) || 0;
 
-  // If Active-only is OFF: show offline nodes even if last-heard unknown
   if (!activeOnly && !node.online && !last) return true;
 
   if (!last) return false;
@@ -1010,12 +1190,10 @@ function renderTable() {
 
   const html = rows
     .map(({ n, last }) => {
-      // Left status dot (desktop)
       const dot = n.online
         ? `<span class="dotOnline"></span>`
         : `<span class="dotOffline"></span>`;
 
-      // Heard time
       const heard = n.isTalker
         ? `<span class="timeNow">Now</span>`
         : last
@@ -1025,7 +1203,6 @@ function renderTable() {
       const monitored = Array.isArray(n.monitoredTGs) ? n.monitoredTGs : [];
       const talkTg = chooseTalkTg(n);
 
-      // TG matrix cells (desktop; mobile hides with CSS)
       const tgCells = TG_LIST.map((tg) => {
         if (n.isTalker && talkTg === tg)
           return `<td class="tg"><span class="tgTalkDot"></span></td>`;
@@ -1037,7 +1214,6 @@ function renderTable() {
       const trCls = n.isTalker ? "talkingRow" : "";
       const loc = formatLocation(n.location || "");
 
-      // Mobile dot (shown only on mobile by CSS)
       const mDotText = n.isTalker && talkTg ? String(talkTg) : "";
       const mDotState = n.online ? "online" : "offline";
       const mDotTalk = n.isTalker ? " talking" : "";
@@ -1046,13 +1222,11 @@ function renderTable() {
       return `
       <tr class="${trCls}">
         <td class="narrow center">${dot}</td>
-
         <td>
           <span class="csHover" data-cs="${escapeHtml(n.callsign)}">
             ${mDotHtml}<strong>${escapeHtml(n.callsign)}</strong>
           </span>
         </td>
-
         <td>${escapeHtml(loc)}</td>
         <td class="center">${heard}</td>
         ${tgCells}
@@ -1270,11 +1444,9 @@ async function main() {
   initMap();
   initAutoHideHeader();
 
-  // config
   const cfgResp = await fetch("/config.json", { cache: "no-store" });
   state.cfg = await cfgResp.json();
 
-  // Restore "Show" + "Window" settings from previous visit
   restoreUiPrefs();
 
   if (titleEl && state.cfg.title) titleEl.textContent = state.cfg.title;
@@ -1290,7 +1462,6 @@ async function main() {
   buildTgHeader();
   initHoverTooltips();
 
-  // Controls -> rerender
   [showRepeatersEl, showHotspotsEl, activeOnlyEl, windowSelectEl].forEach(
     (el) => {
       if (!el) return;
@@ -1301,7 +1472,6 @@ async function main() {
     },
   );
 
-  // 1Hz refresh for "time since heard"
   setInterval(() => renderTable(), 1000);
 
   connectWs();
