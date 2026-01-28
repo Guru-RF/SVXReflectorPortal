@@ -65,8 +65,10 @@
         --border: #e5e7eb;
         --panel: #f8fafc;
         --accent: #a52a2a; /* talking */
-        --hotspot: #ffa502;
-        --overlap: #800180; /* hotspots */
+        --hotspot: #ffa502; /* hotspots */
+
+        --overlap-ring: #e7e2c6; /* overlap marker outline */
+        --spider-ring: rgba(30, 41, 59, 0.35); /* spiderfy rings/legs */
 
         --dark-brightness: 1.28;
         --dark-contrast: 0.96;
@@ -89,6 +91,12 @@
         --border: #1f2a3b;
         --panel: #0f172a;
         --accent: #a52a2a;
+        --spider-ring: rgba(
+          226,
+          232,
+          240,
+          0.55
+        ); /* spiderfy rings/legs (lighter) */
       }
 
       * {
@@ -683,19 +691,19 @@
     <footer class="site-footer">
       <div class="footer-row">
         <div class="footer-left">
-          The portal logic concept was proposed by
+          Concept by
           <a
             href="https://www.qrz.com/db/ON8ST"
             target="_blank"
             rel="noopener noreferrer"
             >ON8ST</a
-          >, coded and implemented by
+          >, coded by
           <a
             href="https://www.qrz.com/db/ON6URE"
             target="_blank"
             rel="noopener noreferrer"
             >ON6URE</a
-          >, and runs on top of svxreflector by
+          >, on top of svxreflector by
           <a
             href="https://www.qrz.com/db/SM0SVX"
             target="_blank"

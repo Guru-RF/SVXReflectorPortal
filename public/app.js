@@ -34,9 +34,6 @@ const SPIDER_R2_PX = 96; // ring 2 radius (px)
 const SPIDER_R1_CAP = 10; // max markers on ring 1
 const SPIDER_R2_CAP = 22; // max markers on ring 2 (total 32)
 const SPIDER_SEGMENTS = 72; // ring smoothness
-const OVERLAP_RING_COLOR_FALLBACK = "#800180"; // purple ring to indicate overlapping nodes
-const OVERLAP_RING_WEIGHT = 4; // stroke thickness for overlap ring
-const OVERLAP_RING_RADIUS_BONUS = 1; // extra radius so fill stays visible
 
 function loadUiPrefs() {
   try {
@@ -601,7 +598,6 @@ function unspiderfy() {
   state.spiderMarkers = [];
   state.spiderRings = [];
   state.spiderKey = "";
-  applyOverlapIndicators();
 }
 
 function rebuildOverlapIndex() {
@@ -617,25 +613,29 @@ function rebuildOverlapIndex() {
   for (const m of state.hsMarkers.values()) addMarker(m);
 }
 
-function applyOverlapIndicators() {
-  if (!state.map) return;
+function applyOverlapOutline() {
+  // Visual hint: if multiple markers share the exact same coordinates,
+  // give them a thick outline so users can see "there is more here"
+  // even before clicking (spiderfy).
+  const ring = cssVar("--overlap-ring", "#E7E2C6");
+  const minWeight = 4;
 
-  for (const [cs, m] of state.repMarkers.entries()) {
-    const n = state.nodes.get(cs);
-    if (!n || !m) continue;
-    const key = m._svxBaseKey || "";
-    const group = key ? state.overlapIndex.get(key) : null;
-    const overlap = !!group && group.length > 1 && state.spiderKey !== key;
-    setRepeaterStyle(m, n, overlap);
-  }
+  const all = [
+    ...Array.from(state.repMarkers.values()),
+    ...Array.from(state.hsMarkers.values()),
+  ];
 
-  for (const [cs, m] of state.hsMarkers.entries()) {
-    const n = state.nodes.get(cs);
-    if (!n || !m) continue;
-    const key = m._svxBaseKey || "";
+  for (const m of all) {
+    if (!m || typeof m.setStyle !== "function") continue;
+
+    const key = m._svxBaseKey;
     const group = key ? state.overlapIndex.get(key) : null;
-    const overlap = !!group && group.length > 1 && state.spiderKey !== key;
-    setHotspotStyle(m, n, overlap);
+    const count = group ? group.length : 1;
+
+    if (count > 1) {
+      const w = Math.max(Number(m.options?.weight) || 1, minWeight);
+      m.setStyle({ color: ring, weight: w, opacity: 1 });
+    }
   }
 }
 
@@ -677,7 +677,7 @@ function spiderfyKey(key) {
   const base = sorted[0]._svxBaseLatLng;
   if (!base) return;
 
-  const ringColor = cssVar("--border", "#94a3b8");
+  const ringColor = cssVar("--spider-ring", cssVar("--border", "#94a3b8"));
   const r1 = L.polyline(ringLatLngs(base, SPIDER_R1_PX), {
     color: ringColor,
     weight: 2,
@@ -711,7 +711,6 @@ function spiderfyKey(key) {
   state.spiderMarkers = sorted;
 
   normalizeMarkerZOrder();
-  applyOverlapIndicators();
 }
 
 function bindSpiderfyClick(marker) {
@@ -880,85 +879,63 @@ function setTalkLabel(marker, callsign, enabled) {
   } catch {}
 }
 
-function setRepeaterStyle(marker, node, overlap = false) {
-  const accent = cssVar("--accent", "#A52A2A"); // RED while talking
-  const ok = cssVar("--ok", "#35c48d"); // green when online
+function setRepeaterStyle(marker, node) {
+  const accent = cssVar("--accent", "#A52A2A");
+  const ok = cssVar("--ok", "#35c48d");
   const muted = "rgba(148,163,184,.55)";
-  const ring = cssVar("--overlap", OVERLAP_RING_COLOR_FALLBACK);
 
-  // Fill color expresses state (online / talking). Stroke is normally same as fill,
-  // but becomes a thick purple ring when multiple nodes share the same coordinates.
-  let fill = muted;
+  let color = muted;
   let radius = 5;
   let fillOpacity = 0.3;
   let weight = 1;
 
   if (node.online) {
-    fill = ok;
+    color = ok;
     fillOpacity = 0.55;
     radius = 6;
   }
   if (node.isTalker) {
-    fill = accent;
+    color = accent;
     fillOpacity = 1.0;
     radius = 8;
     weight = 4;
   }
 
-  let stroke = fill;
-  if (overlap) {
-    stroke = ring;
-    weight = Math.max(weight, OVERLAP_RING_WEIGHT);
-    radius = radius + OVERLAP_RING_RADIUS_BONUS;
-  }
-
   marker.setStyle({
-    color: stroke,
-    fillColor: fill,
+    color,
+    fillColor: color,
     radius,
     fillOpacity,
     weight,
     opacity: 1,
   });
-
   setTalkLabel(marker, node.callsign, !!node.isTalker);
 }
 
-function setHotspotStyle(marker, node, overlap = false) {
-  const accent = cssVar("--accent", "#A52A2A"); // RED while talking
-  const hs = cssVar("--hotspot", "#FFA502"); // ORANGE for hotspots
-  const ring = cssVar("--overlap", OVERLAP_RING_COLOR_FALLBACK);
+function setHotspotStyle(marker, node) {
+  const accent = cssVar("--accent", "#A52A2A");
+  const hs = cssVar("--hotspot", "#FFA502");
 
-  // Fill color expresses hotspot state. Stroke becomes purple when overlapping.
-  let fill = hs;
+  let color = hs;
   let radius = 6;
   let fillOpacity = node.online ? 0.65 : 0.25;
   let weight = 1;
 
   if (node.isTalker) {
-    fill = accent;
+    color = accent;
     radius = 8;
     fillOpacity = 1.0;
     weight = 4;
   }
 
-  let stroke = fill;
-  if (overlap) {
-    stroke = ring;
-    weight = Math.max(weight, OVERLAP_RING_WEIGHT);
-    radius = radius + OVERLAP_RING_RADIUS_BONUS;
-  }
-
   marker.setStyle({
-    color: stroke,
-    fillColor: fill,
+    color,
+    fillColor: color,
     radius,
     fillOpacity,
     weight,
     opacity: 1,
   });
-
-  // Only show callsign label when talking (avoids clutter)
   setTalkLabel(marker, node.callsign, !!node.isTalker);
 }
 
@@ -1079,7 +1056,7 @@ function updateMapMarkers() {
   }
 
   rebuildOverlapIndex();
-  applyOverlapIndicators();
+  applyOverlapOutline();
   normalizeMarkerZOrder();
 }
 
