@@ -14,7 +14,9 @@
  * - Overlapping markers: spiderfy on click with TWO guide rings (bigger radius + spacing).
  */
 
-const TG_LIST = [
+// Populated from /config.json (TG_INFO_JSON in env.yaml) at startup.
+// Default kept only as a fallback in case the config has no talkgroup info.
+let TG_LIST = [
   4, 6, 8, 23, 40, 50, 51, 52, 53, 54, 55, 58, 60, 1745, 1785, 2300, 2990, 8400,
   8401, 9000,
 ];
@@ -1104,7 +1106,7 @@ function renderStatus() {
 
 function chooseTalkTg(node) {
   const tg = Number(node.tg || 0);
-  if (node.isTalker && tg && TG_LIST.includes(tg)) return tg;
+  if (node.isTalker && tg) return tg;
 
   if (
     node.isTalker &&
@@ -1112,7 +1114,7 @@ function chooseTalkTg(node) {
     node.monitoredTGs.length
   ) {
     const first = Number(node.monitoredTGs[0]);
-    if (TG_LIST.includes(first)) return first;
+    if (first) return first;
   }
   return 0;
 }
@@ -1179,14 +1181,20 @@ function renderTable() {
 
       const monitored = Array.isArray(n.monitoredTGs) ? n.monitoredTGs : [];
       const talkTg = chooseTalkTg(n);
+      const talkTgInList = !!talkTg && TG_LIST.includes(talkTg);
 
-      const tgCells = TG_LIST.map((tg) => {
-        if (n.isTalker && talkTg === tg)
-          return `<td class="tg"><span class="tgTalkDot"></span></td>`;
-        if (monitored.includes(tg))
-          return `<td class="tg"><span class="tgCheck">&#10003;</span></td>`;
-        return `<td class="tg"></td>`;
-      }).join("");
+      let tgCells;
+      if (n.isTalker && talkTg && !talkTgInList) {
+        tgCells = `<td class="tg tgOther" colspan="${TG_LIST.length}"><span class="tgTalkDot"></span><span class="tgOtherLabel">TG ${escapeHtml(String(talkTg))}</span></td>`;
+      } else {
+        tgCells = TG_LIST.map((tg) => {
+          if (n.isTalker && talkTg === tg)
+            return `<td class="tg"><span class="tgTalkDot"></span></td>`;
+          if (monitored.includes(tg))
+            return `<td class="tg"><span class="tgCheck">&#10003;</span></td>`;
+          return `<td class="tg"></td>`;
+        }).join("");
+      }
 
       const trCls = n.isTalker ? "talkingRow" : "";
       const loc = formatLocation(n.location || "");
@@ -1435,6 +1443,12 @@ async function main() {
   };
   state.tgInfo = normalizeTgInfo(tgMerged);
   state.csInfo = normalizeCsInfo(csMerged);
+
+  const configuredTgs = Object.keys(state.tgInfo)
+    .map((k) => Number(k))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .sort((a, b) => a - b);
+  if (configuredTgs.length) TG_LIST = configuredTgs;
 
   buildTgHeader();
   initHoverTooltips();
