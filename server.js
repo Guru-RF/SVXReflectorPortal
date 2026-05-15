@@ -37,6 +37,16 @@ app.get("/config.json", (_req, res) => {
   });
 });
 
+app.get("/talkgroups.json", (_req, res) => {
+  res.set("cache-control", "no-store");
+  res.json(TALKGROUP_INFO);
+});
+
+app.get("/callsigns.json", (_req, res) => {
+  res.set("cache-control", "no-store");
+  res.json(CALLSIGN_INFO);
+});
+
 app.use(
   express.static(path.join(__dirname, "public"), {
     etag: false,
