@@ -395,6 +395,12 @@
         font-weight: 900;
         line-height: 1;
       }
+      /* TG the node was last talking on (no longer active) */
+      .tgCheck.tgCheckLast {
+        background: rgba(53, 196, 141, 0.16);
+        border-color: rgba(53, 196, 141, 0.45);
+        color: var(--ok);
+      }
       .tgTalkDot {
         width: 14px;
         height: 14px;
@@ -643,6 +649,18 @@
         table tbody td:nth-child(4) {
           width: 15%;
           white-space: nowrap;
+        }
+
+        /* Virtual callsigns ("ON6URE/M"): stack parts vertically, hide slash */
+        strong.cs.csVirtual {
+          white-space: normal;
+          line-height: 1.05;
+        }
+        strong.cs.csVirtual .csPart {
+          display: block;
+        }
+        strong.cs.csVirtual .csSlash {
+          display: none;
         }
       }
     </style>

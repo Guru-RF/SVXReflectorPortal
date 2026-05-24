@@ -1215,6 +1215,7 @@ function renderTable() {
       const monitored = Array.isArray(n.monitoredTGs) ? n.monitoredTGs : [];
       const talkTg = chooseTalkTg(n);
       const talkTgInList = !!talkTg && TG_LIST.includes(talkTg);
+      const lastTalkTg = Number(n.lastTalkTg || 0) || 0;
 
       let tgCells;
       if (n.isTalker && talkTg && !talkTgInList) {
@@ -1223,6 +1224,8 @@ function renderTable() {
         tgCells = TG_LIST.map((tg) => {
           if (n.isTalker && talkTg === tg)
             return `<td class="tg"><span class="tgTalkDot"></span></td>`;
+          if (!n.isTalker && lastTalkTg === tg)
+            return `<td class="tg"><span class="tgCheck tgCheckLast">&#10003;</span></td>`;
           if (monitored.includes(tg))
             return `<td class="tg"><span class="tgCheck">&#10003;</span></td>`;
           return `<td class="tg"></td>`;
@@ -1241,12 +1244,25 @@ function renderTable() {
       const mDotTalk = n.isTalker ? " talking" : "";
       const mDotHtml = `<span class="mDot ${mDotState}${mDotTalk}">${escapeHtml(mDotText)}</span>`;
 
+      // Virtual callsigns ("ON6URE/M") get split markup so mobile can stack
+      // the parts on two lines and hide the slash to fit the narrow column.
+      const csHtml =
+        n.isVirtual && n.callsign.includes("/")
+          ? n.callsign
+              .split("/")
+              .map(
+                (part, idx, arr) =>
+                  `<span class="csPart">${escapeHtml(part)}</span>${idx < arr.length - 1 ? '<span class="csSlash">/</span>' : ""}`,
+              )
+              .join("")
+          : escapeHtml(n.callsign);
+
       return `
       <tr class="${trCls}">
         <td class="narrow center">${dot}</td>
         <td>
           <span class="csHover" data-cs="${escapeHtml(n.callsign)}">
-            ${mDotHtml}<strong>${escapeHtml(n.callsign)}</strong>
+            ${mDotHtml}<strong class="cs${n.isVirtual ? " csVirtual" : ""}">${csHtml}</strong>
           </span>
         </td>
         <td>${escapeHtml(loc)}</td>
@@ -1343,14 +1359,23 @@ function applyNodeUpsert(node) {
       : [];
 
   const virtual = isVirtual(cs);
+  const incomingTg = Number(node.tg || 0) || 0;
+  const isTalkerNow = !!node.isTalker;
+  // Remember the TG a node was last actively talking on, so we can keep
+  // showing it in green after they stop.
+  const lastTalkTg =
+    isTalkerNow && incomingTg
+      ? incomingTg
+      : Number(prev.lastTalkTg || 0) || 0;
   const merged = {
     ...prev,
     ...node,
     callsign: cs,
     online: virtual ? true : !!node.online,
     isVirtual: virtual,
-    isTalker: !!node.isTalker,
-    tg: Number(node.tg || 0) || 0,
+    isTalker: isTalkerNow,
+    tg: incomingTg,
+    lastTalkTg,
     monitoredTGs: monitored,
     lat: toNumber(node.lat ?? prev.lat),
     lon: toNumber(node.lon ?? prev.lon),
