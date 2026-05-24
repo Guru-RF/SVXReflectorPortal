@@ -21,6 +21,14 @@ let TG_LIST = [
   8401, 9000,
 ];
 
+// Debug logging — enable with ?debug=1 in the URL
+const DEBUG =
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).has("debug");
+function dlog(...args) {
+  if (DEBUG) console.log("[svx]", ...args);
+}
+
 // Belgium bounds
 const BE_SW = [49.48, 2.54];
 const BE_NE = [51.55, 6.41];
@@ -160,6 +168,12 @@ function isRepeater(callsign) {
   return String(callsign || "")
     .toUpperCase()
     .startsWith("ON0");
+}
+
+// Virtual callsigns (AI audio-detection on a repeater) contain a "/".
+// They have no real session, so we treat them as always online.
+function isVirtual(callsign) {
+  return String(callsign || "").includes("/");
 }
 
 function toNumber(v) {
@@ -884,6 +898,7 @@ function setTalkLabel(marker, callsign, enabled) {
 function setRepeaterStyle(marker, node) {
   const accent = cssVar("--accent", "#A52A2A");
   const ok = cssVar("--ok", "#35c48d");
+  const virtual = cssVar("--virtual", "#3b82f6");
   const muted = "rgba(148,163,184,.55)";
 
   let color = muted;
@@ -892,7 +907,7 @@ function setRepeaterStyle(marker, node) {
   let weight = 1;
 
   if (node.online) {
-    color = ok;
+    color = node.isVirtual ? virtual : ok;
     fillOpacity = 0.55;
     radius = 6;
   }
@@ -917,8 +932,9 @@ function setRepeaterStyle(marker, node) {
 function setHotspotStyle(marker, node) {
   const accent = cssVar("--accent", "#A52A2A");
   const hs = cssVar("--hotspot", "#FFA502");
+  const virtual = cssVar("--virtual", "#3b82f6");
 
-  let color = hs;
+  let color = node.isVirtual ? virtual : hs;
   let radius = 6;
   let fillOpacity = node.online ? 0.65 : 0.25;
   let weight = 1;
@@ -1119,32 +1135,34 @@ function chooseTalkTg(node) {
   return 0;
 }
 
-function shouldShowInTable(node, nowMs) {
+function shouldShowInTableDebug(node, nowMs) {
   const showRepeaters = isChecked(showRepeatersEl, true);
   const showHotspots = isChecked(showHotspotsEl, true);
   const activeOnly = isChecked(activeOnlyEl, true);
 
   const rep = isRepeater(node.callsign);
 
-  if (rep && !showRepeaters) return false;
+  if (rep && !showRepeaters) return { show: false, reason: "type" };
+  if (!rep && !showHotspots && !node.isTalker)
+    return { show: false, reason: "type" };
 
-  if (!rep && !showHotspots) {
-    if (!node.isTalker) return false;
-  }
+  if (node.isTalker) return { show: true };
+  if (node.online) return { show: true };
 
-  if (activeOnly && !node.online) return false;
-
-  const windowSec = selectNumber(windowSelectEl, 3600);
-  const windowMs = windowSec * 1000;
-
-  if (node.isTalker) return true;
-
+  // Offline path: keep recently-heard nodes visible even when Active-only is on,
+  // so a node that flips offline post-snapshot doesn't vanish from the list.
   const last = state.lastHeard.get(node.callsign) || 0;
+  const windowMs = selectNumber(windowSelectEl, 3600) * 1000;
+  const inWindow = last > 0 && nowMs - last <= windowMs;
 
-  if (!activeOnly && !node.online && !last) return true;
+  if (activeOnly) {
+    return inWindow ? { show: true } : { show: false, reason: "active" };
+  }
+  return { show: true };
+}
 
-  if (!last) return false;
-  return nowMs - last <= windowMs;
+function shouldShowInTable(node, nowMs) {
+  return shouldShowInTableDebug(node, nowMs).show;
 }
 
 function renderTable() {
@@ -1153,11 +1171,24 @@ function renderTable() {
   const now = Date.now();
 
   const rows = [];
+  let kept = 0;
+  let droppedReason = { type: 0, active: 0, stale: 0 };
   for (const n of state.nodes.values()) {
-    if (!shouldShowInTable(n, now)) continue;
+    const verdict = shouldShowInTableDebug(n, now);
+    if (!verdict.show) {
+      droppedReason[verdict.reason] = (droppedReason[verdict.reason] || 0) + 1;
+      continue;
+    }
+    kept++;
     const last = state.lastHeard.get(n.callsign) || 0;
     const ago = last ? now - last : Number.POSITIVE_INFINITY;
     rows.push({ n, last, ago });
+  }
+  if (DEBUG) {
+    dlog(
+      `render: ${state.nodes.size} known → ${kept} shown. dropped:`,
+      droppedReason,
+    );
   }
 
   rows.sort((a, b) => {
@@ -1169,9 +1200,11 @@ function renderTable() {
 
   const html = rows
     .map(({ n, last }) => {
-      const dot = n.online
-        ? `<span class="dotOnline"></span>`
-        : `<span class="dotOffline"></span>`;
+      const dot = n.isVirtual
+        ? `<span class="dotVirtual"></span>`
+        : n.online
+          ? `<span class="dotOnline"></span>`
+          : `<span class="dotOffline"></span>`;
 
       const heard = n.isTalker
         ? `<span class="timeNow">Now</span>`
@@ -1200,7 +1233,11 @@ function renderTable() {
       const loc = formatLocation(n.location || "");
 
       const mDotText = n.isTalker && talkTg ? String(talkTg) : "";
-      const mDotState = n.online ? "online" : "offline";
+      const mDotState = n.isVirtual
+        ? "virtual"
+        : n.online
+          ? "online"
+          : "offline";
       const mDotTalk = n.isTalker ? " talking" : "";
       const mDotHtml = `<span class="mDot ${mDotState}${mDotTalk}">${escapeHtml(mDotText)}</span>`;
 
@@ -1263,7 +1300,8 @@ function ensureNodeFromSession(sess) {
 
   state.nodes.set(cs, {
     callsign: cs,
-    online: false,
+    online: isVirtual(cs),
+    isVirtual: isVirtual(cs),
     isTalker: false,
     tg,
     monitoredTGs,
@@ -1304,11 +1342,13 @@ function applyNodeUpsert(node) {
       ? prev.monitoredTGs
       : [];
 
+  const virtual = isVirtual(cs);
   const merged = {
     ...prev,
     ...node,
     callsign: cs,
-    online: !!node.online,
+    online: virtual ? true : !!node.online,
+    isVirtual: virtual,
     isTalker: !!node.isTalker,
     tg: Number(node.tg || 0) || 0,
     monitoredTGs: monitored,
@@ -1370,11 +1410,31 @@ function connectWs() {
     }
 
     if (msg.type === "snapshot") {
-      state.nodes.clear();
+      const incoming = Array.isArray(msg.nodes) ? msg.nodes : [];
+      const incomingOnline = incoming.filter((n) => n && n.online).length;
+      dlog(
+        `snapshot: ${incoming.length} nodes (${incomingOnline} online), ${(msg.sessions || []).length} sessions, ${(msg.active || []).length} active. Preserving ${state.nodes.size} known.`,
+      );
+      if (DEBUG && incoming.length) {
+        dlog(
+          "  callsigns:",
+          incoming
+            .map((n) => `${n.callsign}(${n.online ? "on" : "off"})`)
+            .join(", "),
+        );
+      }
+
+      // Preserve previously-known nodes across snapshots — mark them offline
+      // (virtual ones stay online) and let the incoming snapshot re-confirm
+      // those still present. Without this, a reflector reload that arrives
+      // with a small/empty snapshot would briefly wipe the entire list.
+      for (const [cs, n] of state.nodes) {
+        n.online = isVirtual(cs);
+        n.isTalker = false;
+      }
       state.prevTalker.clear();
 
-      const nodes = Array.isArray(msg.nodes) ? msg.nodes : [];
-      for (const n of nodes) applyNodeUpsert(n);
+      for (const n of incoming) applyNodeUpsert(n);
 
       const sessions = Array.isArray(msg.sessions) ? msg.sessions : [];
       for (const s of sessions) updateLastHeardFromSession(s);
@@ -1387,6 +1447,9 @@ function connectWs() {
     }
 
     if (msg.type === "node_upsert" && msg.node) {
+      dlog(
+        `node_upsert: ${msg.node.callsign} online=${msg.node.online} isTalker=${msg.node.isTalker}`,
+      );
       applyNodeUpsert(msg.node);
       renderAll();
       return;
@@ -1396,10 +1459,13 @@ function connectWs() {
       (msg.type === "talk_start" || msg.type === "talk_stop") &&
       msg.session
     ) {
+      dlog(`${msg.type}: ${msg.session.callsign}`);
       updateLastHeardFromSession(msg.session);
       renderAll();
       return;
     }
+
+    dlog("unhandled msg:", msg.type);
   };
 }
 

@@ -66,6 +66,7 @@
         --panel: #f8fafc;
         --accent: #a52a2a; /* talking */
         --hotspot: #ffa502; /* hotspots */
+        --virtual: #3b82f6; /* AI-detected virtual callsigns */
 
         --overlap-ring: #e7e2c6; /* overlap marker outline */
         --spider-ring: rgba(30, 41, 59, 0.35); /* spiderfy rings/legs */
@@ -332,7 +333,8 @@
       }
 
       .dotOnline,
-      .dotOffline {
+      .dotOffline,
+      .dotVirtual {
         width: 14px;
         height: 14px;
         border-radius: 50%;
@@ -344,6 +346,9 @@
       }
       .dotOffline {
         background: var(--bad);
+      }
+      .dotVirtual {
+        background: var(--virtual);
       }
 
       .leaflet-tooltip.talkLabel {
@@ -546,6 +551,9 @@
       }
       .mDot.offline {
         background: var(--bad);
+      }
+      .mDot.virtual {
+        background: var(--virtual);
       }
       .mDot.talking {
         width: 22px;
