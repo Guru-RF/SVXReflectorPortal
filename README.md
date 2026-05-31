@@ -224,4 +224,4 @@ works from the HTTPS portal.
 
 ## License
 
-See repository for license information.
+[MIT](LICENSE) © 2026 Joeri Van Dooren
