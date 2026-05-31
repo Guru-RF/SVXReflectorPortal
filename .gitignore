@@ -1,0 +1,20 @@
+# Local configuration & deploy — contain infra-specific values, keep private.
+# Templates committed instead: env.yaml.example, deploy-example.sh
+env.yaml
+deploy.sh
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python (debug/ tooling)
+debug/.venv/
+**/__pycache__/
+*.py[cod]
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Claude Code local config
+.claude/
