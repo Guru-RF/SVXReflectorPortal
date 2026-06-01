@@ -504,6 +504,80 @@
         }
       }
 
+      /* Live audio player (under the status line) */
+      #streamPlayer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        flex-wrap: wrap;
+      }
+      #streamPlayer .streamLabel {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      #streamPlayer .streamSpeaker {
+        width: 15px;
+        height: 15px;
+        fill: currentColor;
+      }
+      #streamPlayer .streamBtns {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      #streamPlayer .streamHint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .streamBtn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        color: var(--fg);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px 6px 9px;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s,
+          color 0.15s;
+      }
+      .streamBtn:hover {
+        border-color: var(--ok);
+      }
+      .streamBtn .streamIco {
+        display: inline-flex;
+        width: 16px;
+        height: 16px;
+      }
+      .streamBtn .streamIco svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      .streamBtn.active {
+        color: #fff;
+        background: var(--ok);
+        border-color: var(--ok);
+      }
+      [data-theme="dark"] .streamBtn.active {
+        color: #04150d;
+      }
+
       /* Floating tooltip */
       #tooltip {
         position: fixed;
@@ -782,5 +856,6 @@
       crossorigin="anonymous"
     ></script>
     <script src="./app.js"></script>
+    <script type="module" src="./player.js"></script>
   </body>
 </html>

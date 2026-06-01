@@ -9,6 +9,12 @@ const UPSTREAM_WS_URL =
 
 const UI_TITLE = process.env.UI_TITLE || "SVX Reflector • Live";
 
+// Optional live audio streaming (svxlink-stream). When STREAM_WS_URL is set the
+// UI shows a small player under the status line that lets you listen to one
+// talkgroup at a time. The talkgroup list is discovered from the stream itself.
+const STREAM_WS_URL = process.env.STREAM_WS_URL || "";
+const STREAM_TOKEN = process.env.STREAM_TOKEN || "";
+
 function parseJsonEnv(name) {
   const raw = process.env[name];
   if (!raw) return {};
@@ -34,6 +40,8 @@ app.get("/config.json", (_req, res) => {
     title: UI_TITLE,
     talkgroupInfo: TALKGROUP_INFO,
     callsignInfo: CALLSIGN_INFO,
+    streamWsUrl: STREAM_WS_URL,
+    streamToken: STREAM_TOKEN,
   });
 });
 
