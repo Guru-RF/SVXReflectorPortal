@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>Download &#8226; SVX Portal App</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <!-- Icons + PWA (shared with the portal) -->
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/icons/favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" sizes="180x180" />
+    <meta name="theme-color" content="#0b1220" />
+
+    <style>
+      :root {
+        --bg: #0b1220;
+        --fg: #e6e8ee;
+        --muted: #9aa3b2;
+        --panel: #0f172a;
+        --panel-2: #121c30;
+        --border: #1f2a3b;
+        --accent: #35c48d; /* "available / go" green, from the portal palette */
+        --accent-fg: #04150d;
+        --accent-soft: rgba(53, 196, 141, 0.12);
+        --accent-ring: rgba(53, 196, 141, 0.4);
+        --radius: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        min-height: 100%;
+        font:
+          15px/1.5 system-ui,
+          Segoe UI,
+          Roboto,
+          Arial,
+          sans-serif;
+        color: var(--fg);
+        background:
+          radial-gradient(
+            900px 500px at 50% -10%,
+            rgba(53, 196, 141, 0.1),
+            transparent 60%
+          ),
+          var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 0 20px 64px;
+      }
+
+      /* ---------- Header ---------- */
+      header.top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 22px 0;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        text-decoration: none;
+      }
+      .brand img {
+        width: 36px;
+        height: 36px;
+        border-radius: 9px;
+        border: 1px solid var(--border);
+      }
+      .top a.back {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 14px;
+        padding: 8px 14px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
+        white-space: nowrap;
+      }
+      .top a.back:hover {
+        color: var(--fg);
+        border-color: var(--accent-ring);
+      }
+
+      /* ---------- Hero ---------- */
+      .hero {
+        text-align: center;
+        padding: 28px 0 30px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-ring);
+        padding: 5px 12px;
+        border-radius: 999px;
+      }
+      .hero h1 {
+        margin: 16px 0 10px;
+        font-size: clamp(28px, 5vw, 44px);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+      }
+      .hero p {
+        margin: 0 auto;
+        max-width: 560px;
+        color: var(--muted);
+        font-size: 16px;
+      }
+
+      /* ---------- Sections ---------- */
+      .section-title {
+        margin: 28px 0 14px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        align-items: stretch; /* equal-height cards in a row */
+      }
+      @media (min-width: 760px) {
+        .grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      /* ---------- Cards ---------- */
+      .card {
+        display: flex;
+        flex-direction: column;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+        transition:
+          border-color 0.15s,
+          transform 0.15s,
+          box-shadow 0.15s;
+      }
+      .card:hover {
+        border-color: var(--accent-ring);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      }
+      .card.detected {
+        border-color: var(--accent-ring);
+        box-shadow: 0 0 0 1px var(--accent-ring) inset;
+      }
+
+      .card-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .os-icon {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        flex: none;
+        border-radius: 12px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        border: 1px solid var(--accent-ring);
+      }
+      .os-icon svg {
+        width: 24px;
+        height: 24px;
+        fill: currentColor;
+      }
+      .os-text {
+        min-width: 0;
+      }
+      .os-name {
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.15;
+      }
+      .os-sub {
+        font-size: 13px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* "Your system" / "Soon" badge, kept on one line, top-aligned */
+      .badge {
+        margin-left: auto;
+        align-self: flex-start;
+        flex: none;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        line-height: 1;
+        white-space: nowrap;
+        border-radius: 999px;
+        padding: 5px 9px;
+      }
+      .badge.here {
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-ring);
+        display: none;
+      }
+      .card.detected .badge.here {
+        display: inline-block;
+      }
+      .badge.soon {
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+      }
+
+      .dls {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .btn {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        border-radius: 12px;
+        padding: 11px 14px;
+        font-weight: 600;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          transform 0.05s;
+      }
+      .btn:active {
+        transform: scale(0.99);
+      }
+      .btn .b-main {
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      .btn .b-sub {
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0.75;
+        margin-left: auto;
+        white-space: nowrap;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: var(--accent-fg);
+      }
+      .btn.primary:hover {
+        background: #46d59d;
+      }
+      .btn.primary .b-sub {
+        opacity: 0.65;
+      }
+      .btn.ghost {
+        background: var(--panel-2);
+        color: var(--fg);
+        border: 1px solid var(--border);
+      }
+      .btn.ghost:hover {
+        border-color: var(--accent-ring);
+      }
+      .dl-ico {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        opacity: 0.9;
+      }
+
+      /* "Coming soon" placeholder line inside mobile cards */
+      .soon-note {
+        margin-top: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      /* ---------- "Won't open?" help ---------- */
+      details.help {
+        margin-top: auto; /* anchor to the bottom so cards stay tidy */
+        padding-top: 14px;
+      }
+      details.help > summary {
+        cursor: pointer;
+        list-style: none;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-top: 1px dashed var(--border);
+        padding-top: 12px;
+      }
+      details.help > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.help > summary::before {
+        content: "›";
+        display: inline-block;
+        transition: transform 0.15s;
+        font-size: 16px;
+        line-height: 1;
+      }
+      details.help[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      details.help[open] > summary {
+        color: var(--fg);
+      }
+      .help ol {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .help li {
+        margin: 5px 0;
+      }
+      .help b {
+        color: var(--fg);
+        font-weight: 600;
+      }
+      .help code {
+        display: block;
+        margin-top: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        color: var(--fg);
+        background: #0a1018;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      /* ---------- Coming-soon (mobile) cards ---------- */
+      .card.soon {
+        opacity: 0.82;
+      }
+      .card.soon:hover {
+        transform: none;
+        box-shadow: none;
+        border-color: var(--border);
+      }
+      .card.soon .os-icon {
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--border);
+      }
+      .card.soon .os-name {
+        color: var(--fg);
+      }
+
+      .note {
+        margin-top: 28px;
+        font-size: 13px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .note a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      footer.foot {
+        margin-top: 40px;
+        padding-top: 22px;
+        border-top: 1px solid var(--border);
+        text-align: center;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      footer.foot a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      footer.foot a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <a class="brand" href="/">
+          <img src="/icons/apple-touch-icon.png" alt="" />
+          <span>SVX Portal</span>
+        </a>
+        <a class="back" href="/">&#8592; Back to live map</a>
+      </header>
+
+      <section class="hero">
+        <span class="pill">Native apps</span>
+        <h1>Download SVX Portal</h1>
+        <p>
+          The live reflector portal as a native app. Pick your system below
+          &mdash; the highlighted button is the right one for most people.
+        </p>
+      </section>
+
+      <h2 class="section-title">Desktop</h2>
+      <div class="grid">
+        <!-- ===================== macOS ===================== -->
+        <div class="card" data-os="mac">
+          <div class="card-head">
+            <span class="os-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.953 4.45z"
+                />
+              </svg>
+            </span>
+            <div class="os-text">
+              <div class="os-name">macOS</div>
+              <div class="os-sub">Disk image &middot; .dmg</div>
+            </div>
+            <span class="badge here">Your system</span>
+          </div>
+
+          <div class="dls">
+            <a
+              class="btn primary"
+              href="https://github.com/Guru-RF/SvxPortalApp/releases/download/latest/SVX-Portal-AppleSilicon.dmg"
+            >
+              <svg class="dl-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17l-4.7-5.3 1.4-1.4L12 13.6V3h0zM5 19h14v2H5z" />
+              </svg>
+              <span class="b-main">Apple Silicon</span>
+              <span class="b-sub">M1&ndash;M4</span>
+            </a>
+            <a
+              class="btn ghost"
+              href="https://github.com/Guru-RF/SvxPortalApp/releases/download/latest/SVX-Portal-Intel.dmg"
+            >
+              <svg class="dl-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17l-4.7-5.3 1.4-1.4L12 13.6V3h0zM5 19h14v2H5z" />
+              </svg>
+              <span class="b-main">Intel</span>
+              <span class="b-sub">Macs before ~2020</span>
+            </a>
+          </div>
+
+          <details class="help">
+            <summary>How to install</summary>
+            <ol>
+              <li>Open the .dmg and drag <b>SVX Portal</b> into Applications.</li>
+              <li>
+                Launch it from Applications &mdash; the apps are signed &amp;
+                notarized by Apple, so they open normally.
+              </li>
+            </ol>
+          </details>
+        </div>
+
+        <!-- ===================== Windows ===================== -->
+        <div class="card" data-os="win">
+          <div class="card-head">
+            <span class="os-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M0 3.449 9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"
+                />
+              </svg>
+            </span>
+            <div class="os-text">
+              <div class="os-name">Windows</div>
+              <div class="os-sub">Installer &middot; .exe</div>
+            </div>
+            <span class="badge here">Your system</span>
+          </div>
+
+          <div class="dls">
+            <a
+              class="btn primary"
+              href="https://github.com/Guru-RF/SvxPortalApp/releases/download/latest/SVX-Portal-Setup-x64.exe"
+            >
+              <svg class="dl-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17l-4.7-5.3 1.4-1.4L12 13.6V3h0zM5 19h14v2H5z" />
+              </svg>
+              <span class="b-main">64-bit (x64)</span>
+              <span class="b-sub">Most PCs</span>
+            </a>
+            <a
+              class="btn ghost"
+              href="https://github.com/Guru-RF/SvxPortalApp/releases/download/latest/SVX-Portal-Setup-arm64.exe"
+            >
+              <svg class="dl-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17l-4.7-5.3 1.4-1.4L12 13.6V3h0zM5 19h14v2H5z" />
+              </svg>
+              <span class="b-main">ARM64</span>
+              <span class="b-sub">Surface / ARM PCs</span>
+            </a>
+          </div>
+
+          <details class="help">
+            <summary>&ldquo;Windows protected your PC&rdquo;? (unsigned app)</summary>
+            <ol>
+              <li>Download and double-click the <b>Setup .exe</b>.</li>
+              <li>
+                A blue <b>&ldquo;Windows protected your PC&rdquo;</b> (SmartScreen)
+                box appears &mdash; this is normal, the app just isn&rsquo;t
+                code-signed.
+              </li>
+              <li>Click the small <b>More info</b> link.</li>
+              <li>Click the <b>Run anyway</b> button that appears.</li>
+              <li>Continue through the installer as usual.</li>
+            </ol>
+          </details>
+        </div>
+
+        <!-- ===================== Linux ===================== -->
+        <div class="card" data-os="linux">
+          <div class="card-head">
+            <span class="os-icon" aria-hidden="true">
+              <svg viewBox="0 0 448 512">
+                <path
+                  d="M220.8 123.3c1 .5 1.8 1.7 3 1.7 1.1 0 2.8-.4 2.9-1.5.2-1.4-1.9-2.3-3.2-2.9-1.7-.7-3.9-1-5.5-.1-.4.2-.8.7-.6 1.1.3 1.3 2.3 1 3.4 1.6zm-21.9 1.7c1.2 0 2-1.2 3-1.7 1.1-.5 3.1-.3 3.5-1.6.2-.4-.2-.9-.6-1.1-1.6-.9-3.8-.6-5.5.1-1.3.6-3.4 1.5-3.2 2.9.1 1 1.8 1.5 2.8 1.5zM420 403.8c-3.6-4-5.3-11.6-7.2-19.7-1.8-8.1-3.9-16.8-10.5-22.4-1.3-1.1-2.6-2.1-4-2.9-1.3-.8-2.7-1.5-4.1-2 9.2-27.3 5.6-54.5-3.7-79.1-11.4-30.1-31.3-56.4-46.5-74.4-17-21.8-33.7-44.8-33.3-77.2C311.1 70.2 274.7 0 188.2 0 110.6 0 90.4 70.3 90.7 122.8c.4 32.4-16.3 55.4-33.3 77.2-15.2 18-35.1 44.3-46.5 74.4-9.3 24.6-12.9 51.8-3.7 79.1-1.4.5-2.8 1.2-4.1 2-1.4.8-2.7 1.8-4 2.9-6.6 5.6-8.7 14.3-10.5 22.4-1.9 8.1-3.6 15.7-7.2 19.7-4.5 5-4.7 10.9-2.3 16.1 2.4 5.2 7.4 9.2 12.6 12.6 10.7 7 25.1 11.4 32.4 17.9.3.3.6.6.9.9 6.8 7.5 12.1 18.7 21.6 25.1 9.5 6.4 23.8 8.1 39.1 4.6.3-.1.6-.2.9-.3 6.6-1.6 12.4-5.8 18.6-9.3 6.2-3.5 12.7-6.3 22.6-6.3s16.4 2.8 22.6 6.3c6.2 3.5 12 7.7 18.6 9.3.3.1.6.2.9.3 15.3 3.5 29.6 1.8 39.1-4.6 9.5-6.4 14.8-17.6 21.6-25.1.3-.3.6-.6.9-.9 7.3-6.5 21.7-10.9 32.4-17.9 5.2-3.4 10.2-7.4 12.6-12.6 2.4-5.2 2.2-11.1-2.3-16.1z"
+                />
+              </svg>
+            </span>
+            <div class="os-text">
+              <div class="os-name">Linux</div>
+              <div class="os-sub">Portable &middot; .AppImage</div>
+            </div>
+            <span class="badge here">Your system</span>
+          </div>
+
+          <div class="dls">
+            <a
+              class="btn primary"
+              href="https://github.com/Guru-RF/SvxPortalApp/releases/download/latest/SVX-Portal-x86_64.AppImage"
+            >
+              <svg class="dl-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17l-4.7-5.3 1.4-1.4L12 13.6V3h0zM5 19h14v2H5z" />
+              </svg>
+              <span class="b-main">x86_64</span>
+              <span class="b-sub">Most PCs</span>
+            </a>
+            <a
+              class="btn ghost"
+              href="https://github.com/Guru-RF/SvxPortalApp/releases/download/latest/SVX-Portal-arm64.AppImage"
+            >
+              <svg class="dl-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17l-4.7-5.3 1.4-1.4L12 13.6V3h0zM5 19h14v2H5z" />
+              </svg>
+              <span class="b-main">ARM64</span>
+              <span class="b-sub">Raspberry Pi / ARM</span>
+            </a>
+          </div>
+
+          <details class="help">
+            <summary>How to run an AppImage</summary>
+            <ol>
+              <li>Download the <b>.AppImage</b> file.</li>
+              <li>
+                Make it executable &mdash; right-click &rarr; <b>Properties</b>
+                &rarr; <b>Permissions</b> &rarr; tick <b>Allow executing as
+                program</b>, or in a terminal:
+                <code>chmod +x SVX-Portal-x86_64.AppImage</code>
+              </li>
+              <li>Double-click it, or run <code>./SVX-Portal-x86_64.AppImage</code></li>
+            </ol>
+          </details>
+        </div>
+      </div>
+
+      <h2 class="section-title">Mobile</h2>
+      <div class="grid">
+        <!-- ===================== Android ===================== -->
+        <div class="card soon">
+          <div class="card-head">
+            <span class="os-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M6 18c0 .55.45 1 1 1h1v3.5a1.5 1.5 0 0 0 3 0V19h2v3.5a1.5 1.5 0 0 0 3 0V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8A1.5 1.5 0 0 0 2 9.5v7a1.5 1.5 0 0 0 3 0v-7A1.5 1.5 0 0 0 3.5 8zm17 0A1.5 1.5 0 0 0 19 9.5v7a1.5 1.5 0 0 0 3 0v-7A1.5 1.5 0 0 0 20.5 8zM15.53 2.16l1.3-1.3a.5.5 0 0 0-.7-.7l-1.48 1.47A5.96 5.96 0 0 0 12 1c-.96 0-1.86.22-2.66.62L7.86.15a.5.5 0 1 0-.7.7l1.3 1.31A5.99 5.99 0 0 0 6 7h12c0-2.03-1.01-3.82-2.47-4.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z"
+                />
+              </svg>
+            </span>
+            <div class="os-text">
+              <div class="os-name">Android</div>
+              <div class="os-sub">Google Play</div>
+            </div>
+            <span class="badge soon">Soon</span>
+          </div>
+          <p class="soon-note">Coming soon to Google Play.</p>
+        </div>
+
+        <!-- ===================== iPhone ===================== -->
+        <div class="card soon">
+          <div class="card-head">
+            <span class="os-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M17 1.01 7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"
+                />
+              </svg>
+            </span>
+            <div class="os-text">
+              <div class="os-name">iPhone</div>
+              <div class="os-sub">App Store</div>
+            </div>
+            <span class="badge soon">Soon</span>
+          </div>
+          <p class="soon-note">Coming soon to the App Store.</p>
+        </div>
+
+        <!-- ===================== iPad ===================== -->
+        <div class="card soon">
+          <div class="card-head">
+            <span class="os-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M19 1H5c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm-7 21c-.83 0-1.5-.67-1.5-1.5S11.17 19 12 19s1.5.67 1.5 1.5S12.83 22 12 22zm7-4H5V4h14v14z"
+                />
+              </svg>
+            </span>
+            <div class="os-text">
+              <div class="os-name">iPad</div>
+              <div class="os-sub">App Store</div>
+            </div>
+            <span class="badge soon">Soon</span>
+          </div>
+          <p class="soon-note">Coming soon to the App Store.</p>
+        </div>
+      </div>
+
+      <p class="note">
+        All apps are free and open the same live reflector view as the website.
+        Builds are published on
+        <a
+          href="https://github.com/Guru-RF/SvxPortalApp/releases"
+          target="_blank"
+          rel="noopener noreferrer"
+          >GitHub</a
+        >.
+      </p>
+
+      <footer class="foot">
+        <a href="/">&#8592; Back to the live map</a> &nbsp;&middot;&nbsp; Hosted by
+        <a href="https://rf.guru" target="_blank" rel="noopener noreferrer"
+          >rf.guru</a
+        >
+      </footer>
+    </div>
+
+    <script>
+      // Progressive enhancement: highlight the visitor's likely desktop OS.
+      // Never hides anything — every download stays visible and usable.
+      (function () {
+        var p = (navigator.userAgentData && navigator.userAgentData.platform) || "";
+        var ua = (p + " " + navigator.platform + " " + navigator.userAgent).toLowerCase();
+        // Don't flag a desktop card for phones/tablets (mobile apps are "soon").
+        if (/iphone|ipad|ipod|android/.test(ua)) return;
+        var os = null;
+        if (/mac/.test(ua)) os = "mac";
+        else if (/win/.test(ua)) os = "win";
+        else if (/linux|x11|cros/.test(ua)) os = "linux";
+        if (!os) return;
+        var card = document.querySelector('.card[data-os="' + os + '"]');
+        if (card) card.classList.add("detected");
+      })();
+    </script>
+  </body>
+</html>
