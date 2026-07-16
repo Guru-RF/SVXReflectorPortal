@@ -1396,6 +1396,19 @@ function applyNodeUpsert(node) {
   state.prevTalker.set(cs, isTalker);
 }
 
+// Drop a node the reflector no longer knows about. Markers are not touched
+// here: updateMapMarkers() reconciles them against state.nodes on the next
+// renderAll(), which also unspiderfies first so no stale marker refs survive.
+function applyNodeRemove(callsign) {
+  const cs = String(callsign || "").toUpperCase();
+  if (!cs) return false;
+
+  const removed = state.nodes.delete(cs);
+  state.lastHeard.delete(cs);
+  state.prevTalker.delete(cs);
+  return removed;
+}
+
 function connectWs() {
   const wsUrl = state.cfg?.wsUrl;
   if (!wsUrl) return;
@@ -1477,6 +1490,12 @@ function connectWs() {
       );
       applyNodeUpsert(msg.node);
       renderAll();
+      return;
+    }
+
+    if (msg.type === "node_remove") {
+      dlog(`node_remove: ${msg.callsign}`);
+      if (applyNodeRemove(msg.callsign)) renderAll();
       return;
     }
 
