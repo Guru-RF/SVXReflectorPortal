@@ -769,14 +769,30 @@ function initMap() {
     },
   );
 
-  state.darkTiles = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    {
+  // Esri Dark Gray Canvas — keyless raster tiles. CARTO's free dark_all now
+  // stamps "API KEY REQUIRED" across every tile, so it can no longer be used
+  // without an account. Base carries the geometry (dimmed via
+  // .tiles-dark-soft); Reference carries the place labels and is left
+  // unfiltered so they stay crisp. Esri stops rendering at z16, so cap
+  // maxNativeZoom there and let Leaflet upscale to keep zoom 19 parity with
+  // the light layer.
+  const esriDark =
+    "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/{id}/MapServer/tile/{z}/{y}/{x}";
+
+  state.darkTiles = L.layerGroup([
+    L.tileLayer(esriDark, {
+      id: "World_Dark_Gray_Base",
       maxZoom: 19,
-      attribution: "&copy; OpenStreetMap, &copy; CARTO",
+      maxNativeZoom: 16,
+      attribution: "&copy; OpenStreetMap contributors, &copy; Esri",
       className: "tiles-dark-soft",
-    },
-  );
+    }),
+    L.tileLayer(esriDark, {
+      id: "World_Dark_Gray_Reference",
+      maxZoom: 19,
+      maxNativeZoom: 16,
+    }),
+  ]);
 
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
   (isDark ? state.darkTiles : state.lightTiles).addTo(map);

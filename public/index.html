@@ -71,9 +71,12 @@
         --overlap-ring: #e7e2c6; /* overlap marker outline */
         --spider-ring: rgba(30, 41, 59, 0.35); /* spiderfy rings/legs */
 
-        --dark-brightness: 1.28;
-        --dark-contrast: 0.96;
-        --dark-saturation: 1.06;
+        /* Esri Dark Gray is already a dark basemap, so it needs only a light
+           touch here — just enough dimming to keep the marker colours popping.
+           Matching CARTO's old near-black made the map unreadable. */
+        --dark-brightness: 0.95;
+        --dark-contrast: 1.05;
+        --dark-saturation: 1;
 
         --tableH: 36vh;
 
