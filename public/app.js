@@ -182,6 +182,12 @@ function isAlwaysOnline(callsign, via) {
   return isVirtual(callsign) && !via;
 }
 
+// Only AI-detected virtual callsigns get the blue "virtual" colour; bridge-
+// relayed stations are coloured like any other node (green online, red off).
+function isAiVirtual(node) {
+  return isAlwaysOnline(node.callsign, node.via);
+}
+
 function toNumber(v) {
   if (v == null) return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -938,7 +944,7 @@ function setRepeaterStyle(marker, node) {
   let weight = 1;
 
   if (node.online) {
-    color = node.isVirtual ? virtual : ok;
+    color = isAiVirtual(node) ? virtual : ok;
     fillOpacity = 0.55;
     radius = 6;
   }
@@ -965,7 +971,7 @@ function setHotspotStyle(marker, node) {
   const hs = cssVar("--hotspot", "#FFA502");
   const virtual = cssVar("--virtual", "#3b82f6");
 
-  let color = node.isVirtual ? virtual : hs;
+  let color = isAiVirtual(node) ? virtual : hs;
   let radius = 6;
   let fillOpacity = node.online ? 0.65 : 0.25;
   let weight = 1;
@@ -1231,7 +1237,7 @@ function renderTable() {
 
   const html = rows
     .map(({ n, last }) => {
-      const dot = n.isVirtual
+      const dot = isAiVirtual(n)
         ? `<span class="dotVirtual"></span>`
         : n.online
           ? `<span class="dotOnline"></span>`
@@ -1267,7 +1273,7 @@ function renderTable() {
       const loc = formatLocation(n.location || "");
 
       const mDotText = n.isTalker && talkTg ? String(talkTg) : "";
-      const mDotState = n.isVirtual
+      const mDotState = isAiVirtual(n)
         ? "virtual"
         : n.online
           ? "online"
@@ -1406,6 +1412,7 @@ function applyNodeUpsert(node) {
     callsign: cs,
     online: alwaysOnline ? true : !!node.online,
     isVirtual: virtual,
+    via: node.via ?? prev.via ?? null,
     isTalker: isTalkerNow,
     tg: incomingTg,
     lastTalkTg,
