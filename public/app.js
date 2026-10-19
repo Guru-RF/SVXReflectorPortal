@@ -176,6 +176,12 @@ function isVirtual(callsign) {
   return String(callsign || "").includes("/");
 }
 
+// Stations relayed by a bridge node ("ECHOLINK/ON6URE", feed field `via`) are
+// virtual too, but the feed reports them online exactly while they talk.
+function isAlwaysOnline(callsign, via) {
+  return isVirtual(callsign) && !via;
+}
+
 function toNumber(v) {
   if (v == null) return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -185,6 +191,15 @@ function toNumber(v) {
     return Number.isFinite(n) ? n : null;
   }
   return null;
+}
+
+// A node without a real QTH (e.g. an EchoLink bridge) reports 0,0. Treat that
+// as no position, so it never lands on the map (or pulls the map) at 0,0.
+function toLatLon(lat, lon) {
+  const la = toNumber(lat);
+  const lo = toNumber(lon);
+  if (la == null || lo == null || (la === 0 && lo === 0)) return [null, null];
+  return [la, lo];
 }
 
 function msAgoLabel(deltaMs) {
@@ -1325,15 +1340,15 @@ function ensureNodeFromSession(sess) {
         .sort((a, b) => a - b);
     }
     if (hint.qth && typeof hint.qth === "object") {
-      lat = toNumber(hint.qth.lat);
-      lon = toNumber(hint.qth.long);
+      [lat, lon] = toLatLon(hint.qth.lat, hint.qth.long);
     }
   }
 
   state.nodes.set(cs, {
     callsign: cs,
-    online: isVirtual(cs),
+    online: isAlwaysOnline(cs, sess.via),
     isVirtual: isVirtual(cs),
+    via: sess.via || null,
     isTalker: false,
     tg,
     monitoredTGs,
@@ -1375,6 +1390,8 @@ function applyNodeUpsert(node) {
       : [];
 
   const virtual = isVirtual(cs);
+  const alwaysOnline = isAlwaysOnline(cs, node.via ?? prev.via);
+  const [lat, lon] = toLatLon(node.lat ?? prev.lat, node.lon ?? prev.lon);
   const incomingTg = Number(node.tg || 0) || 0;
   const isTalkerNow = !!node.isTalker;
   // Remember the TG a node was last actively talking on, so we can keep
@@ -1387,14 +1404,14 @@ function applyNodeUpsert(node) {
     ...prev,
     ...node,
     callsign: cs,
-    online: virtual ? true : !!node.online,
+    online: alwaysOnline ? true : !!node.online,
     isVirtual: virtual,
     isTalker: isTalkerNow,
     tg: incomingTg,
     lastTalkTg,
     monitoredTGs: monitored,
-    lat: toNumber(node.lat ?? prev.lat),
-    lon: toNumber(node.lon ?? prev.lon),
+    lat,
+    lon,
     location: (node.location ?? prev.location ?? "").toString(),
   };
 
@@ -1479,11 +1496,11 @@ function connectWs() {
       }
 
       // Preserve previously-known nodes across snapshots — mark them offline
-      // (virtual ones stay online) and let the incoming snapshot re-confirm
+      // (AI virtual ones stay online) and let the incoming snapshot re-confirm
       // those still present. Without this, a reflector reload that arrives
       // with a small/empty snapshot would briefly wipe the entire list.
       for (const [cs, n] of state.nodes) {
-        n.online = isVirtual(cs);
+        n.online = isAlwaysOnline(cs, n.via);
         n.isTalker = false;
       }
       state.prevTalker.clear();
