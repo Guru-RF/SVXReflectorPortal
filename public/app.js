@@ -1315,8 +1315,64 @@ function renderTable() {
     `<tr><td colspan="${4 + TG_LIST.length}" style="padding:14px;color:var(--muted)">No nodes in this window.</td></tr>`;
 }
 
+// ---------- SIGNAL METER ----------
+// TailChaser's S-meter: 15 segments, S1..S9 then +10..+60, filled from the
+// signal (0..100) the talker's receiver reports to the reflector (feed field
+// `siglev`). Hotspots, apps and bridges report none.
+const SIG_LABELS = "1 2 3 4 5 6 7 8 9 +10 +20 +30 +40 +50 +60".split(" ");
+const SIG_TICKS_HTML = `<div class="sigTicks">${SIG_LABELS.map((x) => `<span>${x}</span>`).join("")}</div>`;
+
+function toSiglev(v) {
+  const n = toNumber(v);
+  return n == null ? null : Math.max(0, Math.min(100, n));
+}
+
+function signalRowHtml(n, withTicks) {
+  let lit = 0;
+  let val = "";
+  let valCls = "sigVal";
+  let title = "Nobody is talking";
+  let who = `<div class="sigWho idle">Nobody talking</div>`;
+
+  if (n) {
+    const tg = chooseTalkTg(n);
+    who = `<div class="sigWho"><strong>${escapeHtml(n.callsign)}</strong><span class="sigTg">${tg ? `TG ${escapeHtml(String(tg))}` : "&nbsp;"}</span></div>`;
+    if (n.siglev == null) {
+      val = "\u2014";
+      valCls += " none";
+      title = `${n.callsign} reports no signal strength`;
+    } else {
+      lit = Math.max(1, Math.min(15, Math.round((n.siglev * 15) / 100)));
+      val = lit <= 9 ? `S${lit}` : `S9+${(lit - 9) * 10}`;
+      title = `Signal ${Math.round(n.siglev)} of 100, as ${n.callsign}'s receiver reports it`;
+    }
+  }
+
+  const bars = SIG_LABELS.map(
+    (_, i) =>
+      `<b class="${i < 4 ? "g" : i < 9 ? "y" : "r"}${i < lit ? " on" : ""}"></b>`,
+  ).join("");
+  const ticks = withTicks ? SIG_TICKS_HTML : "";
+  return `<div class="sigRow" title="${escapeHtml(title)}">${who}<div class="sigMeter"><div class="sigBars">${bars}</div>${ticks}</div><div class="${valCls}">${val}</div></div>`;
+}
+
+function renderSignal() {
+  const el = document.getElementById("signal");
+  if (!el) return;
+  const talkers = [...state.nodes.values()]
+    .filter((n) => n.isTalker)
+    .sort((a, b) => a.callsign.localeCompare(b.callsign));
+  // Two stations can talk at once (on different TGs): one meter each, with
+  // the scale under the last one only.
+  const rows = talkers.length ? talkers : [null];
+  el.innerHTML = rows
+    .map((n, i) => signalRowHtml(n, i === rows.length - 1))
+    .join("");
+}
+
 function renderAll() {
   renderStatus();
+  renderSignal();
   renderTable();
   updateMapMarkers();
   updateMapFocus();
@@ -1414,6 +1470,7 @@ function applyNodeUpsert(node) {
     isVirtual: virtual,
     via: node.via ?? prev.via ?? null,
     isTalker: isTalkerNow,
+    siglev: isTalkerNow ? toSiglev(node.siglev) : null,
     tg: incomingTg,
     lastTalkTg,
     monitoredTGs: monitored,
@@ -1434,6 +1491,19 @@ function applyNodeUpsert(node) {
   }
 
   state.prevTalker.set(cs, isTalker);
+}
+
+// A talker's level changes about twice a second; such an update only needs
+// the meter redrawn, not the table and the map.
+function isSignalOnlyUpdate(node) {
+  const prev = state.nodes.get(String(node?.callsign || "").toUpperCase());
+  if (!prev || !prev.isTalker || !node.isTalker) return false;
+  return Object.keys(node).every(
+    (k) =>
+      k === "siglev" ||
+      k === "callsign" ||
+      JSON.stringify(node[k]) === JSON.stringify(prev[k]),
+  );
 }
 
 // Drop a node the reflector no longer knows about. Markers are not touched
@@ -1509,6 +1579,7 @@ function connectWs() {
       for (const [cs, n] of state.nodes) {
         n.online = isAlwaysOnline(cs, n.via);
         n.isTalker = false;
+        n.siglev = null;
       }
       state.prevTalker.clear();
 
@@ -1528,8 +1599,10 @@ function connectWs() {
       dlog(
         `node_upsert: ${msg.node.callsign} online=${msg.node.online} isTalker=${msg.node.isTalker}`,
       );
+      const levelOnly = isSignalOnlyUpdate(msg.node);
       applyNodeUpsert(msg.node);
-      renderAll();
+      if (levelOnly) renderSignal();
+      else renderAll();
       return;
     }
 
